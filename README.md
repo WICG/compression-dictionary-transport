@@ -28,13 +28,11 @@ The common thread is that the use of compression dictionaries had run into vario
 ### This time will be different
 
 A few things about this current proposal are different from past attempts, in ways we're hoping are meaningful:
-* CORS-based restrictions
-* Path-based scoping
-* Hand-rolled shared compression
-
-
-XXX: more things??
-
+* CORS-based restrictions can ensure that public and private resources don't get mixed in ways that can leak user data.
+  - Dictionaries will be fetched with "omit" CORS mode to ensure they are public resources and don't contain any user secrets
+  - Non-shared dictionaries must be CORS fetched, and only apply to same destination
+* Path-based scoping would help us manage a "single possible dictionary per request" policy, which will minimize client-side cache fan-out.
+* Diff-caching on the server can simplify and enable the server-side deployment story.
 
 ## Use cases
 
@@ -149,17 +147,18 @@ Since those diffs should be small, their impact on the server’s cache hit rate
 
 * [example.com](http://example.com/) downloads [example.com/large-module.wasm](http://example.com/large-module.wasm) for the first time.
 * The response for [example.com/large-module.wasm](http://example.com/large-module.wasm) contains a `bikeshed-use-as-dictionary: &lt;path>` response header
-* The browser takes note of that, and saves that response to a special dictionary cache for that path. That cache would be triple-key partitioned.
-* The next time the browser fetches a resource from said path, it includes a sec-`bikeshed-available-dictionary:` request header, which lists a **single** SHA-256 hash
+* The browser takes note of that, and saves that response to a special dictionary cache for that path and that [request destination](https://fetch.spec.whatwg.org/#concept-request-destination). That cache would be triple-key partitioned.
+* The next time the browser fetches a resource from said path and destination, it includes a `sec-bikeshed-available-dictionary:` request header, which lists a **single** SHA-256 hash
     * SHA-256 hashes are long. Their hex representation would be 64 bytes, and we can base64 them to be ~42 (I think). We can't afford to send many hashes for both performance and privacy reasons.
     * We could truncate those hashes, or use shorter ones, but then we'd run into potential correctness issues in case of collisions. We can run the math on that, to see if it's worth the risk.
     * The `sec-` prefix is there to ensure that requests are not attacker-generated.
     * Ideally, we can get developers to pick a single resource to be the best dictionary for a certain path (where that path may only contain future versions of the same resource)
     * Any new resource as a dictionary for that path would override older ones. When sending requests, the browser would use the _most specific path_ for the request to get its dictionary.
-* When the server gets a request with the sec-`bikeshed-available-dictionary` header in it:
+* When the server gets a request with the `sec-bikeshed-available-dictionary` header in it:
     * The server can simply ignore the dictionary if it doesn't have a diff that corresponds to said dictionary. In that case the server can serve the response without delta compression.
     * If the server does have a corresponding diff, it can respond with that, indicating that as part of its `content-encoding` header, or some other header. There's no need to repeat the hash value, as there's only one.
-* In case the browser advertized a dictionary but then fails to successfuly fetch it from its cache *and* the dictionary was used by the server, the resource request should be terminated.
+      - For example, if we're using [shared brotli compression,](https://datatracker.ietf.org/doc/draft-vandevenne-shared-brotli-format/), the `content-encoding: sbr` header can indicate that.
+    * In case the browser advertized a dictionary but then fails to successfuly fetch it from its cache *and* the dictionary was used by the server, the resource request should be terminated.
 
 
 ### Dynamic resources flow
@@ -171,13 +170,15 @@ Since those diffs should be small, their impact on the server’s cache hit rate
     * It will be downloaded with “idle” priority, once the site is actually idle
     * Browsers may decide to not download it when they suspect that the user is paying for bandwidth, or when used by sites that are not likely to amortize the dictionary costs (e.g. sites that the user isn’t visiting frequently enough).
     * Browsers may decide to not use a shared dictionary if it contains hints that its contents are not public (e.g. `Cache-Control: private` headers).
-* Once the dictionary is downloaded, future navigation requests may advertise the presence of the dictionary using a `bikeshed-available-dictionary:` request header.
+* Once the dictionary is downloaded, future navigation requests may advertise the presence of the dictionary using a `sec-bikeshed-available-dictionary:` request header.
+    * Only a single shared dictionary will be advertised. Shared dictionary will only be used if the path in question doesn't have another available dictionary (from the static resource flow). New shared dictionaries will override older ones.
     * Browsers may avoid advertising the header in some cases to reduce abuse risk.
-* Due to the dynamic nature of the resource, dynamically compressing it with the dictionary will not pose a regression compared to common practices today (e.g. serving-time compression with brotli level 5).
-* In case the browser advertized a dictionary but then fails to successfuly fetch it from its cache *and* the dictionary was used by the server, the resource request should be terminated.
+    * Due to the dynamic nature of the resource, dynamically compressing it with the dictionary will not pose a regression compared to common practices today (e.g. serving-time compression with brotli level 5).
+    * Similar to the static resource case, the server will indicate a use of the dictionary using the `content-encoding` header.
+    * Similarly again, in case the browser advertized a dictionary but then fails to successfuly fetch it from its cache *and* the dictionary was used by the server, the resource request should be terminated.
 
 #### Open questions:
-* Should browsers restrict the number of shared dictionaries per origin to one at a time? Alternatively, should shared dictionaries also have a "path" component, enable multiple ones for different parts of the origin?
+* Should shared dictionaries also have a "path" component, enabling multiple ones for different parts of the origin?
 
 
 ### Compression API
