@@ -1,11 +1,13 @@
 # Compression disctionary transport
 
 ## What is this?
-This explainer outlines the benefits of compression dicutionaries, details the different use case for them, and then proposes a way to deliver such dictionaries to browsers to enable these use cases.
+This explainer outlines the benefits of compression dictionaries, details the different use case for them, and then proposes a way to deliver such dictionaries to browsers to enable these use cases.
 
 ### What are compression dictionaries?
 Compression dictionaries are bits of compressible content known ahead of time. They are being used by compression engines to reduce the size of compressed content.
-Because they are known ahead of time, the compression engine can refer the content in the dictionary rather than just in the delivered content itself, and the decompression engine can interpret the content based on that.
+
+Because they are known ahead of time, the compression engine can refer to the content in the dictionary when representing the compressed content, reducing the size of the compressed payload. The decompression engine can then interpret the content based on that pre-defined knowledge..
+
 Taken to the extreme, if the compressed content is identical to the dictionary, the entire delivered content be a few bytes referring to the dictionary.
 
 Now, you may ask, if dictionaries are so awesome, then..
@@ -15,13 +17,14 @@ Now, you may ask, if dictionaries are so awesome, then..
 At some point, Chrome did use a compression dictionary.
 When Chrome was first released, it supported a dictionary compression method called [SDCH](https://en.wikipedia.org/wiki/SDCH) (Shared-dictionary Compression over HTTP).
 That support was [unshipped](https://groups.google.com/a/chromium.org/g/blink-dev/c/nQl0ORHy7sw/m/HNpR96sqAgAJ) in 2016 due to complexities around the protocol’s implementation, specification and lack of an interoperability story.
-SDCH enabled Chrome and Chromium-based browsers to create origin-specific dictionaries, that were downloaded once for the origin and enabled multiple pages to be compressed with significantly higher rates.
 
+SDCH enabled Chrome and Chromium-based browsers to create origin-specific dictionaries, that were downloaded once for the origin and enabled multiple pages to be compressed with significantly higher rates.
 That's one use case for compression dictionaries we will call the "Shared dictionary" use case.
 
 There's another major use case for shared dictionaries that was never supported by browsers - [delta compression](https://en.wikipedia.org/wiki/Delta_encoding).
+
 That use-case would enable the browser to reuse past resources (e.g. your site's main JS v1.2) in order to compress future ones (e.g. main JS v1.3).
-But traditionally, this use-case raised complexities around the abilities of the browser to coordinate its cache state with the server, and agree on what the dictionary would be.
+But traditionally, this use-case raised complexities around the abilities of the browser to coordinate its cache state with the server, and agree on what the dictionary would be. It also raised issues with both sides having to store all past versions of each resource in order to successfully be able to compress and decompress it.
 
 The common thread is that the use of compression dictionaries had run into various complexities over the years which resulted in deployment issues.
 
