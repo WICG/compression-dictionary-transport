@@ -149,7 +149,7 @@ Since those diffs should be small, their impact on the server’s cache hit rate
 
 
 * [example.com](http://example.com/) downloads [example.com/large-module.wasm](http://example.com/large-module.wasm) for the first time.
-* The response for [example.com/large-module.wasm](http://example.com/large-module.wasm) contains a `bikeshed-use-as-dictionary: &lt;path>` response header
+* The response for [example.com/large-module.wasm](http://example.com/large-module.wasm) contains a `bikeshed-use-as-dictionary: <path>` response header
 * The browser takes note of that, and saves that response to a special dictionary cache for that path and that [request destination](https://fetch.spec.whatwg.org/#concept-request-destination). That cache would be triple-key partitioned.
 * The next time the browser fetches a resource from said path and destination, it includes a `sec-bikeshed-available-dictionary:` request header, which lists a **single** SHA-256 hash
     * SHA-256 hashes are long. Their hex representation would be 64 bytes, and we can base64 them to be ~42 (I think). We can't afford to send many hashes for both performance and privacy reasons.
@@ -160,7 +160,7 @@ Since those diffs should be small, their impact on the server’s cache hit rate
 * When the server gets a request with the `sec-bikeshed-available-dictionary` header in it:
     * The server can simply ignore the dictionary if it doesn't have a diff that corresponds to said dictionary. In that case the server can serve the response without delta compression.
     * If the server does have a corresponding diff, it can respond with that, indicating that as part of its `content-encoding` header, or some other header. There's no need to repeat the hash value, as there's only one.
-      - For example, if we're using [shared brotli compression,](https://datatracker.ietf.org/doc/draft-vandevenne-shared-brotli-format/), the `content-encoding: sbr` header can indicate that.
+      - For example, if we're using [shared brotli compression](https://datatracker.ietf.org/doc/draft-vandevenne-shared-brotli-format/), the `content-encoding: sbr` header can indicate that.
     * In case the browser advertized a dictionary but then fails to successfuly fetch it from its cache *and* the dictionary was used by the server, the resource request should be terminated.
 
 
