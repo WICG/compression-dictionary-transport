@@ -1,4 +1,4 @@
-# Compression disctionary transport
+# Compression dictionary transport
 
 ## What is this?
 This explainer outlines the benefits of compression dictionaries, details the different use case for them, and then proposes a way to deliver such dictionaries to browsers to enable these use cases.
