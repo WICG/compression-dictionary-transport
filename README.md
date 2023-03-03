@@ -17,9 +17,9 @@ For interop reasons, `sbr` compression is only supported on secure contexts (sim
 
 There are also some browser-specific protections independent of the transport compression:
 * Dictionary responses can only be used for resources with the same [fetch destination](https://fetch.spec.whatwg.org/#concept-request-destination) as the dictionary.
-* There are [CORS](https://fetch.spec.whatwg.org/#http-cors-protocol) requirements ([detailed below](#security-mitigations)) for both the dictionary and compressed resource.
+* For security and privacy reasons, there are [CORS](https://fetch.spec.whatwg.org/#http-cors-protocol) requirements ([detailed below](#security-mitigations)) for both the dictionary and compressed resource.
 * The `scope` of a dictionary can not refer to paths higher in the directory structure (similar to service worker scope requirements).
-* In order to populate a dictionary for future use, a server can respond with link tag or header to trigger an idle-time fetch spcifically for a dictionary for future use. i.e. `<link rel=bikeshed-dictionary as=[destination] href=[dictionary_url]>`.
+* In order to populate a dictionary for future use, a server can respond with link tag or header to trigger an idle-time fetch specifically for a dictionary for future use. i.e. `<link rel=bikeshed-dictionary as=[destination] href=[dictionary_url]>`.
 
 ## Background
 ### What are compression dictionaries?
@@ -66,7 +66,7 @@ There are two primary models for using shared dictionaries that are similar but 
 * Delta compression - reusing past downloaded resources for compressing future updates of the same or similar resources.
 * Shared dictionary - a dedicated dictionary is downloaded out-of-band, and then used to compress and decompress resources on the page.
 
-In both cases the client advertises the best-available dictionary that it has for a given request and if the server has a delta-compressed version of the resource using the same dictionary or has the dictionary available for dynamic compression then the dictionary is used as an external dictionary for the brotli-compressed response.
+In both cases the client advertises the best-available dictionary that it has for a given request. If the server has a delta-compressed version of the resource, compressed with the advertized dictionary, it can just send that delta-compressed diff. It can also use that advertized dictionary (if available) to dynamically compress that resource.
 
 With the `Delta compression` use case, a previously-downloaded version of the resource is available to use for future requests as a dictionary. For example, with a JavaScript file, v1 of the file may be in the browser's cache and available for use as a dictionary to use when fetching v2 so only the difference between the two needs to be transmitted.
 
@@ -134,7 +134,7 @@ The compression API can also expose support for using caller-supplied dictionari
 
 Since the contents of the dictionary and compressed resource are both effectively readable through side-channel attacks, this proposal makes it excplicit and requires that both be CORS-readable from the document origin. The dictionary and compressed resource must also be from the same origin as each other with the `scope` only comprising the path component of the matching URL.
 
-For dictionaries and resources that are same-origin as the document, no additional requirements exist as both are CORS-readable from the document context.
+For dictionaries and resources that are same-origin as the document, no additional requirements exist as both are CORS-readable from the document context. For navigational requests, the dictionary is same-origin as the document since it is same-origin as the request it applies to and the request is for the document.
 
 For dictionaries and resources served from a different origin than the document, they must be CORS-readable from the document origin. i.e. `Access-Control-Allow: <document origin or *>`.
 
