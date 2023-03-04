@@ -145,6 +145,12 @@ Any caches between the server and the client will need to be able to support `Va
 
 Any middle-boxes in the request flow will also need to support the `sbr` content-encoding. Either by passing it through unmodified or by managing the appropriate dictionaries and compressed resources.
 
+## Open Questions
+
+1. Should there be a way to delete dictionaries deeper in the tree? i.e. `/dictionary` wants to replace `/dir1/xxx/dictionary2`. Otherwise the specificity rules will pick dictionary2 until it is purged from cache.
+1. Should there be a way to support wildcards inside of the path/scope? i.e. `/app/resources/12345/main.js` where the build number is in the path ahead of the file name?
+    * This would complicate the specificity rules.
+    * This would break the "same directory or lower" rules.
 ## Examples
 
 ### Bundled JavaScript on separate origin
