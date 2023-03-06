@@ -137,7 +137,7 @@ The compression API can also expose support for using caller-supplied dictionari
 
 Since the contents of the dictionary and compressed resource are both effectively readable through side-channel attacks, this proposal makes it excplicit and requires that both be CORS-readable from the document origin. The dictionary and compressed resource must also be from the same origin as each other with the `scope` only comprising the path component of the matching URL.
 
-For dictionaries and resources that are same-origin as the document, no additional requirements exist as both are CORS-readable from the document context. For navigational requests, the dictionary is same-origin as the document since it is same-origin as the request it applies to and the request is for the document.
+For dictionaries and resources that are same-origin as the document, no additional requirements exist as both are CORS-readable from the document context. For navigation requests, their resource is by definition same-origin as the document their response will eventually commit. As a result, the dictionaries that apply to their path are similarly same-origin.
 
 For dictionaries and resources served from a different origin than the document, they must be CORS-readable from the document origin. i.e. `Access-Control-Allow: <document origin or *>`.
 
