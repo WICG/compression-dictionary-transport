@@ -105,8 +105,9 @@ For some large and heavily trafficked sites, that case is rare. For others, it�
 In this flow, we’re reusing static resources themselves as dictionaries that would be used to compress future updates of themselves, or similar resources.
 
 * [example.com](http://example.com/) downloads [example.com/large-module.wasm](http://example.com/large-module.wasm) for the first time.
-* The response for [example.com/large-module.wasm](http://example.com/large-module.wasm) contains a `bikeshed-use-as-dictionary: <path>` response header
-* The browser takes note of that, and saves the path, [request destination](https://fetch.spec.whatwg.org/#concept-request-destination) and a SHA-256 hash of the resource with the cached resource.
+* The response for [example.com/large-module.wasm](http://example.com/large-module.wasm) contains a `bikeshed-use-as-dictionary: <path>` response header.
+* The client saves the path, [request destination](https://fetch.spec.whatwg.org/#concept-request-destination) and a SHA-256 hash of the resource with the cached resource.
+    * For browser clients, the response must also be non-opaque in order to be used as a dictionary. Practically, this means the response is either same-origin as the document or has an `Access-Control-Allow:` header that makes the response readable by the document.
 * The next time the browser fetches a resource from said path and destination while the resource is available in cache, it includes a `sec-bikeshed-available-dictionary:` request header, which lists a **single** SHA-256 hash
     * SHA-256 hashes are long. Their hex representation would be 64 bytes, and we can base64 them to be ~42 (I think). We can't afford to send many hashes for both performance and privacy reasons.
     * The `sec-` prefix is there to ensure that requests are not attacker-generated.
@@ -115,11 +116,12 @@ In this flow, we’re reusing static resources themselves as dictionaries that w
     * The server can simply ignore the dictionary if it doesn't have a diff that corresponds to said dictionary. In that case the server can serve the response without delta compression.
     * If the server does have a corresponding diff, it can respond with that, indicating that as part of its `content-encoding` header. There's no need to repeat the hash value, as there's only one.
       - For example, if we're using [shared brotli compression](https://datatracker.ietf.org/doc/draft-vandevenne-shared-brotli-format/), the `content-encoding: sbr` header can indicate that.
-    * In case the browser advertized a dictionary but then fails to successfuly fetch it from its cache *and* the dictionary was used by the server, the resource request should fail.
+* In case the browser advertized a dictionary but then fails to successfuly fetch it from its cache *and* the dictionary was used by the server, the resource request should fail.
+* For browser clients, the response must be non-opaque in order to be decompressed with a shared dictionary. Practically, this means the response is either same-origin as the document or has an `Access-Control-Allow:` header that makes the response readable by the document.
 
 ### Dynamic resources flow
 
-* Shared dictionary is downloaded out of band and declared using a `<link>` header or HTML tag with a `rel=bikeshed-dictionary` type and appropriate `as` for the destination it is to apply to.
+* Shared dictionary is declared ahead-of time and then downloaded out of band using a `<link>` header or HTML tag with a `rel=bikeshed-dictionary` type and appropriate `as` for the destination it is to apply to.
     * The dictionary resource will be downloaded with CORS in “omit” mode to discourage including user-specific private data in the dictionary.
     * It will be downloaded with “idle” priority, once the site is actually idle.
     * Browsers may decide to not download it when they suspect that the user is paying for bandwidth, or when used by sites that are not likely to amortize the dictionary costs (e.g. sites that the user isn’t visiting frequently enough).
@@ -141,9 +143,9 @@ For dictionaries and resources served from a different origin than the document,
 To discourage encoding user-specific private information into the dictionaries, any out-of-band dictionaries fetched using a `<link>` will be uncredentialed fetches.
 
 ### Cache/CDN considerations
-Any caches between the server and the client will need to be able to support `Vary` on both `Accept-Encoding` and `sec-bikeshed-available-dictionary`, otherwise the responses will be either corrupt (in the case of serving a sbr resource with the wrong dictionary) or ineffective (serving the brotli-compressed resource when sbr was possible)
+Any caches between the server and the client will need to be able to support `Vary` on both `Accept-Encoding` and `sec-bikeshed-available-dictionary`, otherwise the responses will be either corrupt (in the case of serving a sbr resource with the wrong dictionary) or ineffective (serving the brotli-compressed resource when sbr was possible).
 
-Any middle-boxes in the request flow will also need to support the `sbr` content-encoding. Either by passing it through unmodified or by managing the appropriate dictionaries and compressed resources.
+Any middle-boxes in the request flow will also need to support the `sbr` content-encoding, either by passing it through unmodified or by managing the appropriate dictionaries and compressed resources.
 
 ## Open Questions
 
@@ -165,7 +167,7 @@ On the initial visit to the site:
 * The browser loads https://www.example.com/ which contains `<script src="//static.example.com/app/main.js/123">` (where 123 is the build number of the code).
 * The browser requests https://static.example.com/app/main.js/123 with `Accept-Encoding: br, gzip, sbr`.
 * The server for static.example.com responds with the file as well as `bikeshed-use-as-dictionary: /app/main.js`, `Access-Control-Allow: https://www.example.com` and `Vary: Accept-Encoding,sec-bikeshed-available-dictionary`.
-* The browser caches the js file along with a SHA-256 hash of the decompressed file, the `/app/main.js` scope and a fetch destination of `script`
+* The browser caches the js file along with a SHA-256 hash of the decompressed file, the `/app/main.js` scope and a fetch destination of `script`.
 
 ```mermaid
 sequenceDiagram
@@ -180,7 +182,7 @@ At build time, the site developer creates delta-compressed versions of main.js u
 On a future visit to the site after the application code has changed:
 * The browser loads https://www.example.com/ which contains `<script src="//static.example.com/app/main.js/125">`.
 * The browser matches the `/app/main.js/125` request with the `/app/main.js` path of the previous response that is in cache as well as the fetch destination of `script` and requests https://static.example.com/app/main.js/123 with `Accept-Encoding: br, gzip, sbr` and `sec-bikeshed-available-dictionary: <SHA-256 HASH>`.
-* The server for static.example.com matches the URL and hash withe the pre-compressed artifact from the build and responds with it and `Content-Encoding: sbr`, `Access-Control-Allow: https://www.example.com`, `Vary: Accept-Encoding,sec-bikeshed-available-dictionary`.
+* The server for static.example.com matches the URL and hash with the pre-compressed artifact from the build and responds with it and `Content-Encoding: sbr`, `Access-Control-Allow: https://www.example.com`, `Vary: Accept-Encoding,sec-bikeshed-available-dictionary`.
 
 It could have also included a new `bikeshed-use-as-dictionary: /app/main.js` response header to have the new version of the file replace the old one as the dictionary to use for future requests for the path but that is not a requirement for the existing dictionary to have been used.
 
