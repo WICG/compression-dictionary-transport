@@ -151,6 +151,10 @@ Any middle-boxes in the request flow will also need to support the `sbr` content
 1. Should there be a way to support wildcards inside of the path/scope? i.e. `/app/resources/12345/main.js` where the build number is in the path ahead of the file name?
     * This would complicate the specificity rules.
     * This would break the "same directory or lower" rules.
+1. Should dictionaries support an explicit expiration/lifetime independent of the cache lifetime of the resource?
+    * The number of dictionaries advertisied by clients could grow unbounded over time for clients that haven't visited in a long time. That could cause issues with varying the response in CDN caches based on the requested dictionary.
+    * If `bikeshed-use-as-dictionary:` is made a [structured field dictionary](https://www.rfc-editor.org/rfc/rfc8941.html#name-dictionaries), it could open up the possibility of adding an expiration time. i.e. `bikeshed-use-as-dictionary: p="/dir1", e=604800` where `p` is the path (defaults to the same path as the resource?) and `e` is the expiration time in seconds (defaults to 7 days?).
+        * Would need to specify the effect of `304` responses on expiration time (presumably it would extend by the same expiration time).
 ## Examples
 
 ### Bundled JavaScript on separate origin
