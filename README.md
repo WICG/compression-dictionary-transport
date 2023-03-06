@@ -122,7 +122,7 @@ In this flow, we’re reusing static resources themselves as dictionaries that w
 ### Dynamic resources flow
 
 * Shared dictionary is declared ahead-of time and then downloaded out of band using a `<link>` header or HTML tag with a `rel=bikeshed-dictionary` type and appropriate `as` for the destination it is to apply to.
-    * The dictionary resource will be downloaded with CORS in “omit” mode to discourage including user-specific private data in the dictionary.
+    * The dictionary resource will be downloaded with CORS in “omit” mode to discourage including user-specific private data in the dictionary, since its data will be readable without credentials.
     * It will be downloaded with “idle” priority, once the site is actually idle.
     * Browsers may decide to not download it when they suspect that the user is paying for bandwidth, or when used by sites that are not likely to amortize the dictionary costs (e.g. sites that the user isn’t visiting frequently enough).
     * Browsers may decide to not use a shared dictionary if it contains hints that its contents are not public (e.g. `Cache-Control: private` headers).
