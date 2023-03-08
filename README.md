@@ -121,7 +121,7 @@ In this flow, we’re reusing static resources themselves as dictionaries that w
 
 ### Dynamic resources flow
 
-* Shared dictionary is declared ahead-of time and then downloaded out of band using a `<link>` header or HTML tag with a `rel=bikeshed-dictionary` type and appropriate `as` for the destination it is to apply to.
+* Shared dictionary is declared ahead-of time and then downloaded out of band using a `Link:` header on the document response or `<link>` HTML tag with a `rel=bikeshed-dictionary` type and appropriate `as` for the destination it is to apply to.
     * The dictionary resource will be downloaded with CORS in “omit” mode to discourage including user-specific private data in the dictionary, since its data will be readable without credentials.
     * It will be downloaded with “idle” priority, once the site is actually idle.
     * Browsers may decide to not download it when they suspect that the user is paying for bandwidth, or when used by sites that are not likely to amortize the dictionary costs (e.g. sites that the user isn’t visiting frequently enough).
@@ -133,8 +133,9 @@ In this flow, we’re reusing static resources themselves as dictionaries that w
 
 The compression API can also expose support for using caller-supplied dictionaries but that is out-of-scope for this proposal.
 
-### Security mitigations
+## Security and Privacy
 
+### Dictionary and Resource readability (CORS)
 Since the contents of the dictionary and compressed resource are both effectively readable through side-channel attacks, this proposal makes it excplicit and requires that both be CORS-readable from the document origin. The dictionary and compressed resource must also be from the same origin as each other with the `scope` only comprising the path component of the matching URL.
 
 For dictionaries and resources that are same-origin as the document, no additional requirements exist as both are CORS-readable from the document context. For navigation requests, their resource is by definition same-origin as the document their response will eventually commit. As a result, the dictionaries that apply to their path are similarly same-origin.
@@ -143,7 +144,19 @@ For dictionaries and resources served from a different origin than the document,
 
 To discourage encoding user-specific private information into the dictionaries, any out-of-band dictionaries fetched using a `<link>` will be uncredentialed fetches.
 
-### Cache/CDN considerations
+### Fingerprinting
+The existance of a dictionary is effectively a cookie for any requests that match it and should be treated as such:
+* Storage partitionining for dictionary resource metadata should be at least as restrictive as for cookies.
+* Dictionary entries (or at least the metadata) should be cleared any time cookies are cleared.
+
+The existance of support for `content-encoding: sbr` has the potential to leak client state information if not applied consistently. If the browser supports `sbr` encoding then it should always be advertised, independent of the current state of the feature. Specifically, this means that in any private browsing mode (incogneto in Chrome), `sbr` support should still be advertised even if the dictionaries will not persist so that the state of the private browsing mode is not exposed.
+
+### Triggering dictionary fetches
+The explicit fetching of a dictionary through a `<link rel=bikeshed-dictionary>` tag or `Link:` header is functionally equivalent to `<link rel=preload>` with different priority and should be treated as such. This means that the `Link:` header is only effective for documant navigation responses and can not be used for subresource loads.
+
+This prevents passive resources, like images, from using the dictionary fetch as a side-channel for sending information.
+
+## Cache/CDN considerations
 Any caches between the server and the client will need to be able to support `Vary` on both `Accept-Encoding` and `sec-bikeshed-available-dictionary`, otherwise the responses will be either corrupt (in the case of serving a sbr resource with the wrong dictionary) or ineffective (serving the brotli-compressed resource when sbr was possible).
 
 Any middle-boxes in the request flow will also need to support the `sbr` content-encoding, either by passing it through unmodified or by managing the appropriate dictionaries and compressed resources.
