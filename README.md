@@ -152,7 +152,7 @@ The existance of a dictionary is effectively a cookie for any requests that matc
 The existance of support for `content-encoding: sbr` has the potential to leak client state information if not applied consistently. If the browser supports `sbr` encoding then it should always be advertised, independent of the current state of the feature. Specifically, this means that in any private browsing mode (incogneto in Chrome), `sbr` support should still be advertised even if the dictionaries will not persist so that the state of the private browsing mode is not exposed.
 
 ### Triggering dictionary fetches
-The explicit fetching of a dictionary though a `<link rel=bikeshed-dictionary>` tag or `Link:` header is functionally equivalent to `<link rel=preload>` with different priority and should be treated as such. This means that the `Link:` header is only effective for documant navigation responses and can not be used for subresource loads.
+The explicit fetching of a dictionary through a `<link rel=bikeshed-dictionary>` tag or `Link:` header is functionally equivalent to `<link rel=preload>` with different priority and should be treated as such. This means that the `Link:` header is only effective for documant navigation responses and can not be used for subresource loads.
 
 This prevents passive resources, like images, from using the dictionary fetch as a side-channel for sending information.
 
