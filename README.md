@@ -116,7 +116,7 @@ In this flow, we’re reusing static resources themselves as dictionaries that w
     * The server can simply ignore the dictionary if it doesn't have a diff that corresponds to said dictionary. In that case the server can serve the response without delta compression.
     * If the server does have a corresponding diff, it can respond with that, indicating that as part of its `content-encoding` header. There's no need to repeat the hash value, as there's only one.
       - For example, if we're using [shared brotli compression](https://datatracker.ietf.org/doc/draft-vandevenne-shared-brotli-format/), the `content-encoding: sbr` header can indicate that.
-* In case the browser advertized a dictionary but then fails to successfuly fetch it from its cache *and* the dictionary was used by the server, the resource request should fail.
+* In case the browser advertized a dictionary but then fails to successfully fetch it from its cache *and* the dictionary was used by the server, the resource request should fail.
 * For browser clients, the response must be non-opaque in order to be decompressed with a shared dictionary. Practically, this means the response is either same-origin as the document or has an `Access-Control-Allow:` header that makes the response readable by the document.
 
 ### Dynamic resources flow
@@ -136,7 +136,7 @@ The compression API can also expose support for using caller-supplied dictionari
 ## Security and Privacy
 
 ### Dictionary and Resource readability (CORS)
-Since the contents of the dictionary and compressed resource are both effectively readable through side-channel attacks, this proposal makes it excplicit and requires that both be CORS-readable from the document origin. The dictionary and compressed resource must also be from the same origin as each other with the `scope` only comprising the path component of the matching URL.
+Since the contents of the dictionary and compressed resource are both effectively readable through side-channel attacks, this proposal makes it explicit and requires that both be CORS-readable from the document origin. The dictionary and compressed resource must also be from the same origin as each other with the `scope` only comprising the path component of the matching URL.
 
 For dictionaries and resources that are same-origin as the document, no additional requirements exist as both are CORS-readable from the document context. For navigation requests, their resource is by definition same-origin as the document their response will eventually commit. As a result, the dictionaries that apply to their path are similarly same-origin.
 
@@ -145,14 +145,14 @@ For dictionaries and resources served from a different origin than the document,
 To discourage encoding user-specific private information into the dictionaries, any out-of-band dictionaries fetched using a `<link>` will be uncredentialed fetches.
 
 ### Fingerprinting
-The existance of a dictionary is effectively a cookie for any requests that match it and should be treated as such:
-* Storage partitionining for dictionary resource metadata should be at least as restrictive as for cookies.
+The existence of a dictionary is effectively a cookie for any requests that match it and should be treated as such:
+* Storage partitioning for dictionary resource metadata should be at least as restrictive as for cookies.
 * Dictionary entries (or at least the metadata) should be cleared any time cookies are cleared.
 
-The existance of support for `content-encoding: sbr` has the potential to leak client state information if not applied consistently. If the browser supports `sbr` encoding then it should always be advertised, independent of the current state of the feature. Specifically, this means that in any private browsing mode (incogneto in Chrome), `sbr` support should still be advertised even if the dictionaries will not persist so that the state of the private browsing mode is not exposed.
+The existence of support for `content-encoding: sbr` has the potential to leak client state information if not applied consistently. If the browser supports `sbr` encoding then it should always be advertised, independent of the current state of the feature. Specifically, this means that in any private browsing mode (Incognito in Chrome), `sbr` support should still be advertised even if the dictionaries will not persist so that the state of the private browsing mode is not exposed.
 
 ### Triggering dictionary fetches
-The explicit fetching of a dictionary through a `<link rel=bikeshed-dictionary>` tag or `Link:` header is functionally equivalent to `<link rel=preload>` with different priority and should be treated as such. This means that the `Link:` header is only effective for documant navigation responses and can not be used for subresource loads.
+The explicit fetching of a dictionary through a `<link rel=bikeshed-dictionary>` tag or `Link:` header is functionally equivalent to `<link rel=preload>` with different priority and should be treated as such. This means that the `Link:` header is only effective for document navigation responses and can not be used for subresource loads.
 
 This prevents passive resources, like images, from using the dictionary fetch as a side-channel for sending information.
 
@@ -168,7 +168,7 @@ Any middle-boxes in the request flow will also need to support the `sbr` content
     * This would complicate the specificity rules.
     * This would break the "same directory or lower" rules.
 1. Should dictionaries support an explicit expiration/lifetime independent of the cache lifetime of the resource?
-    * The number of dictionaries advertisied by clients could grow unbounded over time for clients that haven't visited in a long time. That could cause issues with varying the response in CDN caches based on the requested dictionary.
+    * The number of dictionaries advertized by clients could grow unbounded over time for clients that haven't visited in a long time. That could cause issues with varying the response in CDN caches based on the requested dictionary.
     * If `bikeshed-use-as-dictionary:` is made a [structured field dictionary](https://www.rfc-editor.org/rfc/rfc8941.html#name-dictionaries), it could open up the possibility of adding an expiration time. i.e. `bikeshed-use-as-dictionary: p="/dir1", e=604800` where `p` is the path (defaults to the same path as the resource?) and `e` is the expiration time in seconds (defaults to 7 days?).
         * Would need to specify the effect of `304` responses on expiration time (presumably it would extend by the same expiration time).
 ## Examples
@@ -227,7 +227,7 @@ Browser->>www.example.com: GET /product/dictionary_v1.dat<br/>Accept-Encoding: b
 www.example.com->>Browser: bikeshed-use-as-dictionary: /product/
 ```
 
-At some point after the dictionary has been fetched, the user clicks on a link to to https://www.example.com/product/myproduct:
+At some point after the dictionary has been fetched, the user clicks on a link to https://www.example.com/product/myproduct:
 * The browser matches the `/product/myproduct` request with the `/product` path of the previous dictionary request as well as the fetch destination of `document` and requests https://www.example.com/product/myproduct with `Accept-Encoding: br, gzip, sbr` and `sec-bikeshed-available-dictionary: <SHA-256 HASH>`.
 * The server supports dynamically compressing responses using available dictionaries and has the dictionary with the same hash available and responds with a brotli-compressed version of the response using the specified dictionary and `Content-Encoding: sbr` (and Vary headers if the response is cacheable).
 
