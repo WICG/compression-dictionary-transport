@@ -67,6 +67,10 @@ This looks at the `trendingNow.yhome-atomic.<hash>.min.css` file on www.yahoo.co
 
 The CSS was [94% smaller](https://test.patrickmeenan.com/shared-brotli/static/result.php?id=ad74b63a31af1817a32214055eaa08793c37faf2) using the previous version as a dictionary for the new version than if the new version was downloaded with brotli alone. Specifically, the 7kb CSS was 1.8kb with brotli alone and 120 bytes when using brotli and the previous version as a dictionary.
 
+## Filament wasm engine
+This looks at `filament.wasm` from https://google.github.io/filament/ (a c++ - based renderer) from January 2023 to March 2023 which covers a few dozen releases, demenstrating the effectiveness on wasm code.
+
+The wasm was [47% smaller](https://test.patrickmeenan.com/shared-brotli/static/result.php?id=82395244d252774012a310115338a2802984833b) using the previous version as a dictionary for the new version than if the new version was downloaded with brotli alone. Specifically, the 2.6mb wasm was 1.2mb with brotli alone and 651kb bytes when using brotli and the previous version as a dictionary.
 
 # Dynamic resource flow results
 
