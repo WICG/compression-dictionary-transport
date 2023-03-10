@@ -8,9 +8,9 @@ This proposal adds support for using designated previous responses, as an extern
 
 HTTP `Content-Encoding` is extended with a new encoding type and support for allowing responses to be used as dictionaries for future requests. *All actual header values and names still TBD*:
 
-* Server responds to a request for a cacheable resource with an `bikeshed-use-as-dictionary: <scope/path>`.
+* Server responds to a request for a cacheable resource with an `bikeshed-use-as-dictionary: <options>`.
 * The client will store a SHA-256 hash of the uncompressed response and the applicable `scope` for the resource with the cached response to identify it as a dictionary.
-* On future requests, the client will match a request against an available dictionary with the best-matching `scope`. If a dictionary is available for a given request, the client will add `sbr` to the `Accept-Encoding` request header as well as a `sec-bikeshed-available-dictionary: <SHA-256>` header with the hash of the best available dictionary.
+* On future requests, the client will match a request against an available dictionary with the best-matching `scope`. If a dictionary is available for a given request, the client will add `sbr` to the `Accept-Encoding` request header as well as a `sec-bikeshed-available-dictionary: sha-256=:<SHA-256>:` header with the hash of the best available dictionary (only SHA-256 is currently supported).
 * If the server has a compressed version of the request URL with the matching dictionary, it serves the dictonary-compressed response with `Content-Encoding: sbr` and `Vary: Accept-Encoding,sec-bikeshed-available-dictionary`.
 
 For interop reasons, `sbr` compression is only supported on secure contexts (similar to brotli compression).
@@ -105,11 +105,12 @@ For some large and heavily trafficked sites, that case is rare. For others, it�
 In this flow, we’re reusing static resources themselves as dictionaries that would be used to compress future updates of themselves, or similar resources.
 
 * [example.com](http://example.com/) downloads [example.com/large-module.wasm](http://example.com/large-module.wasm) for the first time.
-* The response for [example.com/large-module.wasm](http://example.com/large-module.wasm) contains a `bikeshed-use-as-dictionary: <path>` response header.
+* The response for [example.com/large-module.wasm](http://example.com/large-module.wasm) contains a `bikeshed-use-as-dictionary: <options>` response header. The options are a [structured field dictionary](https://www.rfc-editor.org/rfc/rfc8941.html#name-dictionaries) that includes the ability to set path/scope, expiration and preferred hashes. More details [here](#dictionary-options-header).
 * The client saves the path, [request destination](https://fetch.spec.whatwg.org/#concept-request-destination) and a SHA-256 hash of the resource with the cached resource.
     * For browser clients, the response must also be non-opaque in order to be used as a dictionary. Practically, this means the response is either same-origin as the document or has an `Access-Control-Allow:` header that makes the response readable by the document.
-* The next time the browser fetches a resource from said path and destination while the resource is available in cache, it includes a `sec-bikeshed-available-dictionary:` request header, which lists a **single** SHA-256 hash
-    * SHA-256 hashes are long. Their hex representation would be 64 bytes, and we can base64 them to be ~42 (I think). We can't afford to send many hashes for both performance and privacy reasons.
+* The next time the browser fetches a resource from said path and destination while the resource is available in cache, it includes a `sec-bikeshed-available-dictionary:` request header, which lists a **single** hash as a [structured field dictionary](https://www.rfc-editor.org/rfc/rfc8941.html#name-dictionaries) with the hash algorithm as the key and [sf-binary base64 encoded value](https://www.rfc-editor.org/rfc/rfc8941.html#name-byte-sequences). i.e. `sec-bikeshed-available-dictionary: sha-256=:d435Qo+nKZ+gLcUHn7GQtQ72hiBVAgqoLsZnZPiTGPk=:`
+    * SHA-256 hashes are long. Their hex representation would be 64 bytes, and we can base64 them to be ~42. We can't afford to send many hashes for both performance and privacy reasons.
+    * Sending a single hash for a single "best match" dictionary is critical for being able to use `Vary: sec-bikeshed-available-dictionary` when caching responses. Otherwise the variations in cache keys would explode and caches would treat it as uncacheable.
     * The `sec-` prefix is there to ensure that requests are not attacker-generated.
     * Any new resource as a dictionary for that path would override older ones. When sending requests, the browser would use the _most specific path_ for the request to get its dictionary.
 * When the server gets a request with the `sec-bikeshed-available-dictionary` header in it:
@@ -126,8 +127,17 @@ In this flow, we’re reusing static resources themselves as dictionaries that w
     * It will be downloaded with “idle” priority, once the site is actually idle.
     * Browsers may decide to not download it when they suspect that the user is paying for bandwidth, or when used by sites that are not likely to amortize the dictionary costs (e.g. sites that the user isn’t visiting frequently enough).
     * Browsers may decide to not use a shared dictionary if it contains hints that its contents are not public (e.g. `Cache-Control: private` headers).
-* The dictionary response must include the `bikeshed-use-as-dictionary: <path>` header, appropriate cache lifetime headers and will be used for future requests using the same process as the [Static resources flow](#static-resources-flow).
+* The dictionary response must include the `bikeshed-use-as-dictionary: <options>` header, appropriate cache lifetime headers and will be used for future requests using the same process as the [Static resources flow](#static-resources-flow).
     * For browser clients, the response must also be non-opaque in order to be used as a dictionary. Practically, this means the response is either same-origin as the document or has an `Access-Control-Allow:` header that makes the response readable by the document.
+
+### Dictionary options header
+The `bikeshed-use-as-dictionary:` response header is a [structured field dictionary](https://www.rfc-editor.org/rfc/rfc8941.html#name-dictionaries) that allows for setting multiple options and for future expansion.  The supported options and defaults are:
+
+* **p** - Path for the dictionary to apply to. *Defaults to exact-match of the full path*. Any specified path will be prefix-matched to requests. i.e. `/app1/main` will match `https://www.example.com/app1/main_12345.js`. Also supports relative-path matching if not prefixed with `/`. i.e. `main` in response to `https://www.example.com/app1/main_1.js` will match `https://www.example.com/app1/main.xyz.js`.
+* **e** - Expiration time in seconds for the dictionary. *Defaults to 31536000 (1 year)*. This is independent of the cache lifetime of the resource being used for the dictionary. If the underlying resource is evicted from cache then it is also removed but this allows for setting an explicit time to live for use as a dictionary independent of the underlying resource in cache. Expired resources can still be useful as dictionaries while they are in cache and can be used for fetching updates of the expired resource. It can also be useful to artificially limit the life of a dictionary in cases where the dictionary is updated frequently, to limit the number of possible incoming dictionary values.
+* **h** - List of supported hash algorithms in order of server preference. Defaults to `sha-256` which is the only supported algorithm currently but allows for future migration to different hash algorithms.
+
+For example: `bikeshed-use-as-dictionary: p="/app1/main", e=604800, h=(sha-256 sha-512)` would specify matching on a path prefix of `/app1/main`, expiring as a dictionary in 7 days, independent of the cache lifetime of the resource and advertise support for both sha-256 and sha-512.
 
 ### Compression API
 
@@ -167,10 +177,7 @@ Any middle-boxes in the request flow will also need to support the `sbr` content
 1. Should there be a way to support wildcards inside of the path/scope? i.e. `/app/resources/12345/main.js` where the build number is in the path ahead of the file name?
     * This would complicate the specificity rules.
     * This would break the "same directory or lower" rules.
-1. Should dictionaries support an explicit expiration/lifetime independent of the cache lifetime of the resource?
-    * The number of dictionaries advertized by clients could grow unbounded over time for clients that haven't visited in a long time. That could cause issues with varying the response in CDN caches based on the requested dictionary.
-    * If `bikeshed-use-as-dictionary:` is made a [structured field dictionary](https://www.rfc-editor.org/rfc/rfc8941.html#name-dictionaries), it could open up the possibility of adding an expiration time. i.e. `bikeshed-use-as-dictionary: p="/dir1", e=604800` where `p` is the path (defaults to the same path as the resource?) and `e` is the expiration time in seconds (defaults to 7 days?).
-        * Would need to specify the effect of `304` responses on expiration time (presumably it would extend by the same expiration time).
+
 ## Examples
 
 ### Bundled JavaScript on separate origin
@@ -180,7 +187,7 @@ In this example, www.example.com will use a bundle of application JavaScript tha
 On the initial visit to the site:
 * The browser loads https://www.example.com/ which contains `<script src="//static.example.com/app/main.js/123">` (where 123 is the build number of the code).
 * The browser requests https://static.example.com/app/main.js/123 with `Accept-Encoding: br, gzip, sbr`.
-* The server for static.example.com responds with the file as well as `bikeshed-use-as-dictionary: /app/main.js`, `Access-Control-Allow: https://www.example.com` and `Vary: Accept-Encoding,sec-bikeshed-available-dictionary`.
+* The server for static.example.com responds with the file as well as `bikeshed-use-as-dictionary: p="/app/main.js"`, `Access-Control-Allow: https://www.example.com` and `Vary: Accept-Encoding,sec-bikeshed-available-dictionary`.
 * The browser caches the js file along with a SHA-256 hash of the decompressed file, the `/app/main.js` scope and a fetch destination of `script`.
 
 ```mermaid
@@ -188,23 +195,23 @@ sequenceDiagram
 Browser->>www.example.com: GET /
 www.example.com->>Browser: ...<script src="//static.example.com/app/main.js/123">...
 Browser->>static.example.com: GET /app/main.js/123<br/>Accept-Encoding: br, gzip, sbr<br/>sec-fetch-dest: script
-static.example.com->>Browser: bikeshed-use-as-dictionary: /app/main.js<br/>Access-Control-Allow: https://www.example.com<br/>Vary: Accept-Encoding,sec-bikeshed-available-dictionary
+static.example.com->>Browser: bikeshed-use-as-dictionary: p="/app/main.js"<br/>Access-Control-Allow: https://www.example.com<br/>Vary: Accept-Encoding,sec-bikeshed-available-dictionary
 ```
 
 At build time, the site developer creates delta-compressed versions of main.js using previous builds as dictionaries, storing the delta-compressed version along with the SHA-256 hash of the dictionary used (i.e. as `main.js.<hash>.sbr`).
 
 On a future visit to the site after the application code has changed:
 * The browser loads https://www.example.com/ which contains `<script src="//static.example.com/app/main.js/125">`.
-* The browser matches the `/app/main.js/125` request with the `/app/main.js` path of the previous response that is in cache as well as the fetch destination of `script` and requests https://static.example.com/app/main.js/123 with `Accept-Encoding: br, gzip, sbr` and `sec-bikeshed-available-dictionary: <SHA-256 HASH>`.
+* The browser matches the `/app/main.js/125` request with the `/app/main.js` path of the previous response that is in cache as well as the fetch destination of `script` and requests https://static.example.com/app/main.js/123 with `Accept-Encoding: br, gzip, sbr` and `sec-bikeshed-available-dictionary: sha-256=:<SHA-256 HASH>:`.
 * The server for static.example.com matches the URL and hash with the pre-compressed artifact from the build and responds with it and `Content-Encoding: sbr`, `Access-Control-Allow: https://www.example.com`, `Vary: Accept-Encoding,sec-bikeshed-available-dictionary`.
 
-It could have also included a new `bikeshed-use-as-dictionary: /app/main.js` response header to have the new version of the file replace the old one as the dictionary to use for future requests for the path but that is not a requirement for the existing dictionary to have been used.
+It could have also included a new `bikeshed-use-as-dictionary: p="/app/main.js"` response header to have the new version of the file replace the old one as the dictionary to use for future requests for the path but that is not a requirement for the existing dictionary to have been used.
 
 ```mermaid
 sequenceDiagram
 Browser->>www.example.com: GET /
 www.example.com->>Browser: ...<script src="//static.example.com/app/main.js/125">...
-Browser->>static.example.com: GET /app/main.js/125<br/>Accept-Encoding: br, gzip, sbr<br/>sec-bikeshed-available-dictionary: [SHA-256 HASH]<br/>sec-fetch-dest: script
+Browser->>static.example.com: GET /app/main.js/125<br/>Accept-Encoding: br, gzip, sbr<br/>sec-bikeshed-available-dictionary: sha-256=:[SHA-256 HASH]:<br/>sec-fetch-dest: script
 static.example.com->>Browser: Content-Encoding: sbr<br/>Access-Control-Allow: https://www.example.com<br/>Vary: Accept-Encoding,sec-bikeshed-available-dictionary
 ```
 
@@ -215,7 +222,7 @@ In this example, www.example.com has a custom-built dictionary that should be us
 On the initial visit to the site:
 * The browser loads https://www.example.com which contains `<link rel=bikeshed-dictionary as=document href="/product/dictionary_v1.dat">`.
 * At an idle time, the browser sends an uncredentialed fetch request for https://www.example.com/product/dictionary_v1.dat with `sec-fetch-dest: document`.
-* The server for www.example.com responds with the dictionary contents as well as `bikeshed-use-as-dictionary: /product/` and appropriate caching headers.
+* The server for www.example.com responds with the dictionary contents as well as `bikeshed-use-as-dictionary: p="/product/"` and appropriate caching headers.
     * note, the dictionary must be served from within the path that it will apply to.
 * The browser caches the dictionary file along with a SHA-256 hash of the decompressed file, the `/app/main.js` scope and a fetch destination of `document`.
 
@@ -224,15 +231,15 @@ sequenceDiagram
 Browser->>www.example.com: GET /
 www.example.com->>Browser: ...<link rel=bikeshed-dictionary as=document href="/product/dictionary_v1.dat">...
 Browser->>www.example.com: GET /product/dictionary_v1.dat<br/>Accept-Encoding: br, gzip, sbr<br/>sec-fetch-dest: document
-www.example.com->>Browser: bikeshed-use-as-dictionary: /product/
+www.example.com->>Browser: bikeshed-use-as-dictionary: p="/product/"
 ```
 
 At some point after the dictionary has been fetched, the user clicks on a link to https://www.example.com/product/myproduct:
-* The browser matches the `/product/myproduct` request with the `/product` path of the previous dictionary request as well as the fetch destination of `document` and requests https://www.example.com/product/myproduct with `Accept-Encoding: br, gzip, sbr` and `sec-bikeshed-available-dictionary: <SHA-256 HASH>`.
+* The browser matches the `/product/myproduct` request with the `/product` path of the previous dictionary request as well as the fetch destination of `document` and requests https://www.example.com/product/myproduct with `Accept-Encoding: br, gzip, sbr` and `sec-bikeshed-available-dictionary: sha-256=:<SHA-256 HASH>:`.
 * The server supports dynamically compressing responses using available dictionaries and has the dictionary with the same hash available and responds with a brotli-compressed version of the response using the specified dictionary and `Content-Encoding: sbr` (and Vary headers if the response is cacheable).
 
 ```mermaid
 sequenceDiagram
-Browser->>www.example.com: GET /product/myproduct<br/>Accept-Encoding: br, gzip, sbr<br/>sec-bikeshed-available-dictionary: [SHA-256 HASH]<br/>sec-fetch-dest: document
+Browser->>www.example.com: GET /product/myproduct<br/>Accept-Encoding: br, gzip, sbr<br/>sec-bikeshed-available-dictionary: sha-256=:[SHA-256 HASH]:<br/>sec-fetch-dest: document
 www.example.com->>Browser: Content-Encoding: sbr
 ```
