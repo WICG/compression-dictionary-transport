@@ -62,6 +62,11 @@ This looks at the `https://vercel.com/_next/static/chunks/pages/_app-<hash>.js` 
 
 The JavaScript was [71% smaller](https://test.patrickmeenan.com/shared-brotli/static/result.php?id=82330335427ce99f8794585b1fa87a3adeff5d7b) using the previous version as a dictionary for the new version than if the new version was downloaded with brotli alone. Specifically, the 1.3mb JavaScript was 327kb with brotli alone and 94kb when using brotli and the previous version as a dictionary.
 
+## Yahoo trending now css
+This looks at the `trendingNow.yhome-atomic.<hash>.min.css` file on www.yahoo.com from January 2023 to March 2023, simulating a user that visited in January 2023 and came back again 2 months later and demonstrating the effectiveness on CSS and on smaller files.
+
+The CSS was [94% smaller](https://test.patrickmeenan.com/shared-brotli/static/result.php?id=ad74b63a31af1817a32214055eaa08793c37faf2) using the previous version as a dictionary for the new version than if the new version was downloaded with brotli alone. Specifically, the 7kb CSS was 1.8kb with brotli alone and 120 bytes when using brotli and the previous version as a dictionary.
+
 
 # Dynamic resource flow results
 
