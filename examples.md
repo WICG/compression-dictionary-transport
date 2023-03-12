@@ -32,6 +32,8 @@ This looks at the JavaScript for YouTube's desktop player from January 2023 vs M
 
 The player JavaScript was [78% smaller](https://test.patrickmeenan.com/shared-brotli/static/result.php?id=500dea94805eb1bf0d786e2992f220c96d45d9f9) using the previous version as a dictionary for the new version than if the new version was downloaded with brotli alone. Specifically, the 10mb JavaScript was 1.8mb with brotli alone and 384kb when using brotli and the previous version as a dictionary.
 
+Narrowing the time span to a more common viewing pattern for YouTube, looking at the week-over-week desktop player releases from mid-March 2023, the player JavaScript was [90% smaller](https://test.patrickmeenan.com/shared-brotli/static/result.php?id=e835baccf0cf6b9312455a8c744b6efbefb3c85b) using the previous version as a dictionary. Specifically, the 10mb JavaScript was 1.8mb with brotli alone and 172kb when using brotli and the previous version as a dictionary.
+
 ## CNN react bundle
 This looks at the `cnn-header-second-react.min.js` file on www.cnn.com from March 2022 to March 2023, simulating a user that visited in March 2022 and came back again a year later. More frequent usage should result in much smaller incremental changes.
 
