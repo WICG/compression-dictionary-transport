@@ -16,6 +16,7 @@ HTTP `Content-Encoding` is extended with a new encoding type and support for all
 For interop reasons, `sbr` compression is only supported on secure contexts (similar to brotli compression).
 
 There are also some browser-specific features independent of the transport compression:
+There are also some browser-specific features independent of the transport compression:
 * For security and privacy reasons, there are [CORS](https://fetch.spec.whatwg.org/#http-cors-protocol) requirements ([detailed below](#security-mitigations)) for both the dictionary and compressed resource.
 * In order to populate a dictionary for future use, a server can respond with link tag or header to trigger an idle-time fetch specifically for a dictionary for future use. i.e. `<link rel=bikeshed-dictionary href=[dictionary_url]>`.
 
