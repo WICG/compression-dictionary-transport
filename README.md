@@ -15,11 +15,9 @@ HTTP `Content-Encoding` is extended with a new encoding type and support for all
 
 For interop reasons, `sbr` compression is only supported on secure contexts (similar to brotli compression).
 
-There are also some browser-specific protections independent of the transport compression:
-* Dictionary responses can only be used for resources with the same [fetch destination](https://fetch.spec.whatwg.org/#concept-request-destination) as the dictionary.
+There are also some browser-specific features independent of the transport compression:
 * For security and privacy reasons, there are [CORS](https://fetch.spec.whatwg.org/#http-cors-protocol) requirements ([detailed below](#security-mitigations)) for both the dictionary and compressed resource.
-* The `scope` of a dictionary can not refer to paths higher in the directory structure (similar to service worker scope requirements).
-* In order to populate a dictionary for future use, a server can respond with link tag or header to trigger an idle-time fetch specifically for a dictionary for future use. i.e. `<link rel=bikeshed-dictionary as=[destination] href=[dictionary_url]>`.
+* In order to populate a dictionary for future use, a server can respond with link tag or header to trigger an idle-time fetch specifically for a dictionary for future use. i.e. `<link rel=bikeshed-dictionary href=[dictionary_url]>`.
 
 ## Background
 ### What are compression dictionaries?
@@ -114,15 +112,16 @@ In this flow, we’re reusing static resources themselves as dictionaries that w
     * The `sec-` prefix is there to ensure that requests are not attacker-generated.
     * Any new resource as a dictionary for that path would override older ones. When sending requests, the browser would use the _most specific path_ for the request to get its dictionary.
 * When the server gets a request with the `sec-bikeshed-available-dictionary` header in it:
+    * If the clent sent a `sec-fetch-mode: cors` request header then the dictionary should be ignored unless the response will have an `Access-Control-Allow-Origin:` response header that includes the origin of the page the request was issued from (`*` or matched against the `origin:` or `referer:`).
     * The server can simply ignore the dictionary if it doesn't have a diff that corresponds to said dictionary. In that case the server can serve the response without delta compression.
     * If the server does have a corresponding diff, it can respond with that, indicating that as part of its `content-encoding` header. There's no need to repeat the hash value, as there's only one.
       - For example, if we're using [shared brotli compression](https://datatracker.ietf.org/doc/draft-vandevenne-shared-brotli-format/), the `content-encoding: sbr` header can indicate that.
 * In case the browser advertized a dictionary but then fails to successfully fetch it from its cache *and* the dictionary was used by the server, the resource request should fail.
-* For browser clients, the response must be non-opaque in order to be decompressed with a shared dictionary. Practically, this means the response is either same-origin as the document or has an `Access-Control-Allow:` header that makes the response readable by the document.
+* For browser clients, the response must be non-opaque in order to be decompressed with a shared dictionary. Practically, this means the response is either same-origin as the document or has an `Access-Control-Allow-Origin:` header that makes the response readable by the document.
 
 ### Dynamic resources flow
 
-* Shared dictionary is declared ahead-of time and then downloaded out of band using a `Link:` header on the document response or `<link>` HTML tag with a `rel=bikeshed-dictionary` type and appropriate `as` for the destination it is to apply to.
+* Shared dictionary is declared ahead-of time and then downloaded out of band using a `Link:` header on the document response or `<link>` HTML tag with a `rel=bikeshed-dictionary` type.
     * The dictionary resource will be downloaded with CORS in “omit” mode to discourage including user-specific private data in the dictionary, since its data will be readable without credentials.
     * It will be downloaded with “idle” priority, once the site is actually idle.
     * Browsers may decide to not download it when they suspect that the user is paying for bandwidth, or when used by sites that are not likely to amortize the dictionary costs (e.g. sites that the user isn’t visiting frequently enough).
@@ -150,7 +149,11 @@ Since the contents of the dictionary and compressed resource are both effectivel
 
 For dictionaries and resources that are same-origin as the document, no additional requirements exist as both are CORS-readable from the document context. For navigation requests, their resource is by definition same-origin as the document their response will eventually commit. As a result, the dictionaries that apply to their path are similarly same-origin.
 
-For dictionaries and resources served from a different origin than the document, they must be CORS-readable from the document origin. i.e. `Access-Control-Allow: <document origin or *>`.
+For dictionaries and resources served from a different origin than the document, they must be CORS-readable from the document origin. i.e. `Access-Control-Allow-Origin: <document origin or *>`.
+
+When sending a CORS request with an available dictionary, a browser should only include the `sec-bikeshed-available-dictionary:` header if it is also sending the `sec-fetch-mode:` header so a CORS-readable decision can be made on the server before responding.
+
+In order to prevent sending dictionary-compressed responses that the client will not be able to process, when a server receives a request with `sec-fetch-mode: cors` as well as a `sec-bikeshed-available-dictionary:` dictionary, it should only use the dictionary if the response includes a `Access-Control-Allow-Origin:` response header that includes the origin of the page the request was made from. Either by virtue of `Access-Control-Allow-Origin: *` covering all origins or if `Access-Control-Allow-Origin:` includes the origin in the `origin:` or `referer:` request header. If there is no `origin:` or `referer:` request header and `Access-Control-Allow-Origin:` is not `*` then the dictionary should not be used.
 
 To discourage encoding user-specific private information into the dictionaries, any out-of-band dictionaries fetched using a `<link>` will be uncredentialed fetches.
 
