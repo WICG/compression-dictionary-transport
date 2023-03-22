@@ -112,7 +112,7 @@ In this flow, we’re reusing static resources themselves as dictionaries that w
     * The `sec-` prefix is there to ensure that requests are not attacker-generated.
     * Any new resource as a dictionary for that path would override older ones. When sending requests, the browser would use the _most specific path_ for the request to get its dictionary.
 * When the server gets a request with the `sec-bikeshed-available-dictionary` header in it:
-    * If the clent sent a `sec-fetch-mode: cors` request header then the dictionary should be ignored unless the response will have an `Access-Control-Allow-Origin:` response header that includes the origin of the page the request was issued from (`*` or matched against the `origin:` or `referer:`).
+    * If the client sent a `sec-fetch-mode: cors` request header then the dictionary should be ignored unless the response will have an `Access-Control-Allow-Origin:` response header that includes the origin of the page the request was issued from (`*` or matched against the `origin:` or `referer:`).
     * The server can simply ignore the dictionary if it doesn't have a diff that corresponds to said dictionary. In that case the server can serve the response without delta compression.
     * If the server does have a corresponding diff, it can respond with that, indicating that as part of its `content-encoding` header. There's no need to repeat the hash value, as there's only one.
       - For example, if we're using [shared brotli compression](https://datatracker.ietf.org/doc/draft-vandevenne-shared-brotli-format/), the `content-encoding: sbr` header can indicate that.
