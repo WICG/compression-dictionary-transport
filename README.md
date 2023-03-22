@@ -198,7 +198,7 @@ At build time, the site developer creates delta-compressed versions of main.js u
 
 On a future visit to the site after the application code has changed:
 * The browser loads https://www.example.com/ which contains `<script src="//static.example.com/app/main.js/125">`.
-* The browser matches the `/app/main.js/125` request with the `/app/main.js` path of the previous response that is in cache and requests https://static.example.com/app/main.js/123 with `Accept-Encoding: br, gzip, sbr`, `sec-fetch-mode: cors` and `sec-bikeshed-available-dictionary: <SHA-256 HASH>`.
+* The browser matches the `/app/main.js/125` request with the `/app/main.js` path of the previous response that is in cache and requests https://static.example.com/app/main.js/125 with `Accept-Encoding: br, gzip, sbr`, `sec-fetch-mode: cors` and `sec-bikeshed-available-dictionary: <SHA-256 HASH>`.
 * The server for static.example.com matches the URL and hash with the pre-compressed artifact from the build and responds with it and `Content-Encoding: sbr`, `Access-Control-Allow-Origin: https://www.example.com`, `Vary: Accept-Encoding,sec-bikeshed-available-dictionary`.
 
 It could have also included a new `bikeshed-use-as-dictionary: /app/main.js` response header to have the new version of the file replace the old one as the dictionary to use for future requests for the path but that is not a requirement for the existing dictionary to have been used.
