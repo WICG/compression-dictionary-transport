@@ -17,7 +17,7 @@ For interop reasons, `sbr` compression is only supported on secure contexts (sim
 
 There are also some browser-specific features independent of the transport compression:
 * For security and privacy reasons, there are [CORS](https://fetch.spec.whatwg.org/#http-cors-protocol) requirements ([detailed below](#security-mitigations)) for both the dictionary and compressed resource.
-* In order to populate a dictionary for future use, a server can respond with link tag or header to trigger an idle-time fetch specifically for a dictionary for future use. i.e. `<link rel=dictionary href=[dictionary_url]>`.
+* In order to populate a dictionary for future use, a server can respond with link tag or header to trigger an idle-time fetch specifically for a dictionary for future use. e.g. `<link rel=dictionary href=[dictionary_url]>`.
 
 ## Background
 ### What are compression dictionaries?
@@ -133,7 +133,7 @@ In this flow, we’re reusing static resources themselves as dictionaries that w
 ### Dictionary options header
 The `use-as-dictionary:` response header is a [structured field dictionary](https://www.rfc-editor.org/rfc/rfc8941.html#name-dictionaries) that allows for setting multiple options and for future expansion.  The supported options and defaults are:
 
-* **p** - Path for the dictionary to apply to. *Required*. The path supports relative or absolute paths as well as `*` wildcard expansion. i.e. `/app1/main*` will match `https://www.example.com/app1/main_12345.js` and `main*` in response to `https://www.example.com/app1/main_1.js` will match `https://www.example.com/app1/main.xyz.js`.
+* **p** - Path for the dictionary to apply to. *Required*. The path supports relative or absolute paths as well as `*` wildcard expansion. e.g. `/app1/main*` will match `https://www.example.com/app1/main_12345.js` and `main*` in response to `https://www.example.com/app1/main_1.js` will match `https://www.example.com/app1/main.xyz.js`.
 * **e** - Expiration time in seconds for the dictionary. *Defaults to 31536000 (1 year)*. This is independent of the cache lifetime of the resource being used for the dictionary. If the underlying resource is evicted from cache then it is also removed but this allows for setting an explicit time to live for use as a dictionary independent of the underlying resource in cache. Expired resources can still be useful as dictionaries while they are in cache and can be used for fetching updates of the expired resource. It can also be useful to artificially limit the life of a dictionary in cases where the dictionary is updated frequently, to limit the number of possible incoming dictionary values.
 * **h** - List of supported hash algorithms in order of server preference. Defaults to `(sha-256)` which is the only supported algorithm currently but allows for future migration to different hash algorithms.
 
@@ -150,7 +150,7 @@ Since the contents of the dictionary and compressed resource are both effectivel
 
 For dictionaries and resources that are same-origin as the document, no additional requirements exist as both are CORS-readable from the document context. For navigation requests, their resource is by definition same-origin as the document their response will eventually commit. As a result, the dictionaries that apply to their path are similarly same-origin.
 
-For dictionaries and resources served from a different origin than the document, they must be CORS-readable from the document origin. i.e. `Access-Control-Allow-Origin: <document origin or *>`.
+For dictionaries and resources served from a different origin than the document, they must be CORS-readable from the document origin. e.g. `Access-Control-Allow-Origin: <document origin or *>`.
 
 When sending a CORS request with an available dictionary, a browser should only include the `sec-available-dictionary:` header if it is also sending the `sec-fetch-mode:` header so a CORS-readable decision can be made on the server before responding.
 
@@ -177,7 +177,7 @@ Any middle-boxes in the request flow will also need to support the `sbr` content
 
 ## Open Questions
 
-1. Should there be a way to delete dictionaries deeper in the tree? i.e. `/dictionary` wants to replace `/dir1/xxx/dictionary2`. Otherwise the specificity rules will pick dictionary2 until it is purged from cache.
+1. Should there be a way to delete dictionaries deeper in the tree? e.g. `/dictionary` wants to replace `/dir1/xxx/dictionary2`. Otherwise the specificity rules will pick dictionary2 until it is purged from cache.
 
 ## Examples
 
@@ -199,7 +199,7 @@ Browser->>static.example.com: GET /app/main.js/123<br/>Accept-Encoding: sbr,br,g
 static.example.com->>Browser: use-as-dictionary: p="/app/main.js"<br/>Access-Control-Allow-Origin: https://www.example.com<br/>Vary: Accept-Encoding,sec-available-dictionary
 ```
 
-At build time, the site developer creates delta-compressed versions of main.js using previous builds as dictionaries, storing the delta-compressed version along with the SHA-256 hash of the dictionary used (i.e. as `main.js.<hash>.sbr`).
+At build time, the site developer creates delta-compressed versions of main.js using previous builds as dictionaries, storing the delta-compressed version along with the SHA-256 hash of the dictionary used (e.g. as `main.js.<hash>.sbr`).
 
 On a future visit to the site after the application code has changed:
 * The browser loads https://www.example.com/ which contains `<script src="//static.example.com/app/main.js/125">`.
