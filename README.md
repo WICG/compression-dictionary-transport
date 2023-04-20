@@ -133,11 +133,11 @@ In this flow, we’re reusing static resources themselves as dictionaries that w
 ### Dictionary options header
 The `use-as-dictionary:` response header is a [structured field dictionary](https://www.rfc-editor.org/rfc/rfc8941.html#name-dictionaries) that allows for setting multiple options and for future expansion.  The supported options and defaults are:
 
-* **p** - Path for the dictionary to apply to. *Required*. The path supports relative or absolute paths as well as `*` wildcard expansion. e.g. `/app1/main*` will match `https://www.example.com/app1/main_12345.js` and `main*` in response to `https://www.example.com/app1/main_1.js` will match `https://www.example.com/app1/main.xyz.js`.
-* **e** - Expiration time in seconds for the dictionary. *Defaults to 31536000 (1 year)*. This is independent of the cache lifetime of the resource being used for the dictionary. If the underlying resource is evicted from cache then it is also removed but this allows for setting an explicit time to live for use as a dictionary independent of the underlying resource in cache. Expired resources can still be useful as dictionaries while they are in cache and can be used for fetching updates of the expired resource. It can also be useful to artificially limit the life of a dictionary in cases where the dictionary is updated frequently, to limit the number of possible incoming dictionary values.
-* **h** - List of supported hash algorithms in order of server preference. Defaults to `(sha-256)` which is the only supported algorithm currently but allows for future migration to different hash algorithms.
+* **path** - Path for the dictionary to apply to. *Required*. The path supports relative or absolute paths as well as `*` wildcard expansion. e.g. `/app1/main*` will match `https://www.example.com/app1/main_12345.js` and `main*` in response to `https://www.example.com/app1/main_1.js` will match `https://www.example.com/app1/main.xyz.js`.
+* **expires** - Expiration time in seconds for the dictionary. *Defaults to 31536000 (1 year)*. This is independent of the cache lifetime of the resource being used for the dictionary. If the underlying resource is evicted from cache then it is also removed but this allows for setting an explicit time to live for use as a dictionary independent of the underlying resource in cache. Expired resources can still be useful as dictionaries while they are in cache and can be used for fetching updates of the expired resource. It can also be useful to artificially limit the life of a dictionary in cases where the dictionary is updated frequently, to limit the number of possible incoming dictionary values.
+* **algorithms** - List of supported hash algorithms in order of server preference. Defaults to `(sha-256)` which is the only supported algorithm currently but allows for future migration to different hash algorithms.
 
-For example: `use-as-dictionary: p="/app1/main", e=604800, h=(sha-256 sha-512)` would specify matching on a path prefix of `/app1/main`, expiring as a dictionary in 7 days, independent of the cache lifetime of the resource and advertise support for both sha-256 and sha-512.
+For example: `use-as-dictionary: path="/app1/main", expires=604800, algorithms=(sha-256 sha-512)` would specify matching on a path prefix of `/app1/main`, expiring as a dictionary in 7 days, independent of the cache lifetime of the resource and advertise support for both sha-256 and sha-512.
 
 ### Compression API
 
@@ -188,7 +188,7 @@ In this example, www.example.com will use a bundle of application JavaScript tha
 On the initial visit to the site:
 * The browser loads https://www.example.com/ which contains `<script src="//static.example.com/app/main.js/123">` (where 123 is the build number of the code).
 * The browser requests https://static.example.com/app/main.js/123 with `Accept-Encoding: sbr,br,gzip`.
-* The server for static.example.com responds with the file as well as `use-as-dictionary: p="/app/main.js"`, `Access-Control-Allow-Origin: https://www.example.com` and `Vary: Accept-Encoding,sec-available-dictionary`.
+* The server for static.example.com responds with the file as well as `use-as-dictionary: path="/app/main.js"`, `Access-Control-Allow-Origin: https://www.example.com` and `Vary: Accept-Encoding,sec-available-dictionary`.
 * The browser caches the js file along with a SHA-256 hash of the decompressed file and the `/app/main.js` path.
 
 ```mermaid
@@ -196,7 +196,7 @@ sequenceDiagram
 Browser->>www.example.com: GET /
 www.example.com->>Browser: ...<script src="//static.example.com/app/main.js/123">...
 Browser->>static.example.com: GET /app/main.js/123<br/>Accept-Encoding: sbr,br,gzip
-static.example.com->>Browser: use-as-dictionary: p="/app/main.js"<br/>Access-Control-Allow-Origin: https://www.example.com<br/>Vary: Accept-Encoding,sec-available-dictionary
+static.example.com->>Browser: use-as-dictionary: path="/app/main.js"<br/>Access-Control-Allow-Origin: https://www.example.com<br/>Vary: Accept-Encoding,sec-available-dictionary
 ```
 
 At build time, the site developer creates delta-compressed versions of main.js using previous builds as dictionaries, storing the delta-compressed version along with the SHA-256 hash of the dictionary used (e.g. as `main.js.<hash>.sbr`).
@@ -206,7 +206,7 @@ On a future visit to the site after the application code has changed:
 * The browser matches the `/app/main.js/125` request with the `/app/main.js` path of the previous response that is in cache and requests https://static.example.com/app/main.js/125 with `Accept-Encoding: sbr,br,gzip`, `sec-fetch-mode: cors` and `sec-available-dictionary: <SHA-256 HASH>`.
 * The server for static.example.com matches the URL and hash with the pre-compressed artifact from the build and responds with it and `Content-Encoding: sbr`, `Access-Control-Allow-Origin: https://www.example.com`, `Vary: Accept-Encoding,sec-available-dictionary`.
 
-It could have also included a new `use-as-dictionary: p="/app/main.js"` response header to have the new version of the file replace the old one as the dictionary to use for future requests for the path but that is not a requirement for the existing dictionary to have been used.
+It could have also included a new `use-as-dictionary: path="/app/main.js"` response header to have the new version of the file replace the old one as the dictionary to use for future requests for the path but that is not a requirement for the existing dictionary to have been used.
 
 ```mermaid
 sequenceDiagram
@@ -223,7 +223,7 @@ In this example, www.example.com has a custom-built dictionary that should be us
 On the initial visit to the site:
 * The browser loads https://www.example.com which contains `<link rel=dictionary href="/product/dictionary_v1.dat">`.
 * At an idle time, the browser sends an uncredentialed fetch request for https://www.example.com/product/dictionary_v1.dat.
-* The server for www.example.com responds with the dictionary contents as well as `use-as-dictionary: p="/product/"` and appropriate caching headers.
+* The server for www.example.com responds with the dictionary contents as well as `use-as-dictionary: path="/product/"` and appropriate caching headers.
 * The browser caches the dictionary file along with a SHA-256 hash of the decompressed file and the `/app/main.js` path.
 
 ```mermaid
@@ -231,7 +231,7 @@ sequenceDiagram
 Browser->>www.example.com: GET /
 www.example.com->>Browser: ...<link rel=dictionary href="/product/dictionary_v1.dat">...
 Browser->>www.example.com: GET /product/dictionary_v1.dat<br/>Accept-Encoding: sbr,br,gzip
-www.example.com->>Browser: use-as-dictionary: p="/product/"
+www.example.com->>Browser: use-as-dictionary: path="/product/"
 ```
 
 At some point after the dictionary has been fetched, the user clicks on a link to https://www.example.com/product/myproduct:
