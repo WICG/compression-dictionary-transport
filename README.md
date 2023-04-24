@@ -170,7 +170,7 @@ The existence of a dictionary is effectively a cookie for any requests that matc
 * Storage partitioning for dictionary resource metadata should be at least as restrictive as for cookies.
 * Dictionary entries (or at least the metadata) should be cleared any time cookies are cleared.
 
-The existence of support for dictionary-based `accept-encoding:` has the potential to leak client state information if not applied consistently. If the browser supports dictionary-based compression algorithms encoding then it should always be advertised, independent of the current state of the feature. Specifically, this means that in any private browsing mode (Incognito in Chrome), `sbr` support should still be advertised even if the dictionaries will not persist so that the state of the private browsing mode is not exposed.
+The existence of support for dictionary-based `accept-encoding:` has the potential to leak client state information if not applied consistently. If the browser supports dictionary-based compression algorithms encoding then it should always be advertised, independent of the current state of the feature. Specifically, this means that in any private browsing mode (Incognito in Chrome), dictionary-based algorithm support should still be advertised even if the dictionaries will not persist so that the state of the private browsing mode is not exposed.
 
 ### Triggering dictionary fetches
 The explicit fetching of a dictionary through a `<link rel=dictionary>` tag or `Link:` header is functionally equivalent to `<link rel=preload>` with different priority and should be treated as such. This means that the `Link:` header is only effective for document navigation responses and can not be used for subresource loads.
@@ -178,9 +178,9 @@ The explicit fetching of a dictionary through a `<link rel=dictionary>` tag or `
 This prevents passive resources, like images, from using the dictionary fetch as a side-channel for sending information.
 
 ## Cache/CDN considerations
-Any caches between the server and the client will need to be able to support `Vary` on both `Accept-Encoding` and `sec-available-dictionary`, otherwise the responses will be either corrupt (in the case of serving a `sbr` resource with the wrong dictionary) or ineffective (serving the brotli-compressed resource when `sbr` was possible).
+Any caches between the server and the client will need to be able to support `Vary` on both `Accept-Encoding` and `sec-available-dictionary`, otherwise the responses will be either corrupt (in the case of serving a dictionary-compressed resource with the wrong dictionary) or ineffective (serving a non-dictionary-compressed resource when dictionary compression was possible).
 
-Any middle-boxes in the request flow will also need to support the `sbr` content-encoding, either by passing it through unmodified or by managing the appropriate dictionaries and compressed resources.
+Any middle-boxes in the request flow will also need to support the dictionary-compressed content-encoding, either by passing it through unmodified or by managing the appropriate dictionaries and compressed resources.
 
 ## Open Questions
 
