@@ -9,8 +9,8 @@ This proposal adds support for using designated previous responses, as an extern
 HTTP `Content-Encoding` is extended with a new encoding type and support for allowing responses to be used as dictionaries for future requests. *All actual header values and names still TBD*:
 
 * Server responds to a request for a cacheable resource with an `use-as-dictionary: <options>`.
-* The client will store a hash of the uncompressed response and the applicable `path` for the resource with the cached response to identify it as a dictionary.
-* On future requests, the client will match a request against an available dictionary with the best-matching `path`. If a dictionary is available for a given request, the client will add `sbr` to the `Accept-Encoding` request header as well as a `sec-available-dictionary: <SHA-256>` header with the hash of the best available dictionary (only SHA-256 is currently supported).
+* The client will store a hash of the uncompressed response and the applicable `match` URL pattern for the resource with the cached response to identify it as a dictionary.
+* On future requests, the client will match a request against the available dictionary `match` URL patterns. If multiple patterns are matched, the most-specific match is used. If a dictionary is available for a given request, the client will add `sbr` to the `Accept-Encoding` request header as well as a `sec-available-dictionary: <SHA-256>` header with the hash of the best available dictionary (only SHA-256 is currently supported).
 * If the server has a compressed version of the request URL with the matching dictionary, it serves the dictonary-compressed response with `Content-Encoding: sbr` and `Vary: Accept-Encoding,sec-available-dictionary`.
 
 For interop reasons, `sbr` compression is only supported on secure contexts (similar to brotli compression).
@@ -51,7 +51,7 @@ The common thread is that the use of compression dictionaries had run into vario
 
 A few things about this current proposal are different from past attempts, in ways we're hoping are meaningful:
 * CORS-based restrictions can ensure that public and private resources don't get mixed in ways that can leak user data.
-* Path-based scoping would help us manage a "single possible dictionary per request" policy, which will minimize client-side cache fan-out.
+* Same-origin, path-based matching would help us manage a "single possible dictionary per request" policy, which will minimize client-side cache fan-out.
 * Dictionaries must already be available on the client to be used (fetching of the dictionary is not in the critical path of a resource fetch).
 * Diff-caching on the server can simplify and enable the server-side deployment story.
 
@@ -68,7 +68,7 @@ In both cases the client advertises the best-available dictionary that it has fo
 
 With the `Delta compression` use case, a previously-downloaded version of the resource is available to use for future requests as a dictionary. For example, with a JavaScript file, v1 of the file may be in the browser's cache and available for use as a dictionary to use when fetching v2 so only the difference between the two needs to be transmitted.
 
-In the `Shared dictionary` use case, the dictionary is a purpose-built dictionary that is fetched using a `<link>` tag and can be used for future requests that match the `path` covered by the dictionary. For example, on a first visit to a site, the HTML response references a custom dictionary that should be used for `document` fetches for that origin. The dictionary is downloaded at some point by the browser and, on future navigations through the site, is advertised as being available for document requests that match the path of the dictionary.
+In the `Shared dictionary` use case, the dictionary is a purpose-built dictionary that is fetched using a `<link>` tag and can be used for future requests that match the `match` URL pattern covered by the dictionary. For example, on a first visit to a site, the HTML response references a custom dictionary that should be used for `document` fetches for that origin. The dictionary is downloaded at some point by the browser and, on future navigations through the site, is advertised as being available for document requests that match the URL pattern that the dictionary applies to.
 
 ## Risks
 
@@ -103,15 +103,15 @@ For some large and heavily trafficked sites, that case is rare. For others, it�
 In this flow, we’re reusing static resources themselves as dictionaries that would be used to compress future updates of themselves, or similar resources.
 
 * [example.com](http://example.com/) downloads [example.com/large-module.wasm](http://example.com/large-module.wasm) for the first time.
-* The response for [example.com/large-module.wasm](http://example.com/large-module.wasm) contains a `use-as-dictionary: <options>` response header. The options are a [structured field dictionary](https://www.rfc-editor.org/rfc/rfc8941.html#name-dictionaries) that includes the ability to set path, expiration and preferred hashes. More details [here](#dictionary-options-header).
-* The client saves the path and a SHA-256 hash of the resource with the cached resource.
+* The response for [example.com/large-module.wasm](http://example.com/large-module.wasm) contains a `use-as-dictionary: <options>` response header. The options are a [structured field dictionary](https://www.rfc-editor.org/rfc/rfc8941.html#name-dictionaries) that includes the ability to set a URL-matching pattern, expiration and preferred hash algorithms. More details [here](#dictionary-options-header).
+* The client saves the URL pattern and a SHA-256 hash of the resource with the cached resource.
     * For browser clients, the response must also be non-opaque in order to be used as a dictionary. Practically, this means the response is either same-origin as the document or has an `Access-Control-Allow-Origin:` header that makes the response readable by the document.
-* The next time the browser fetches a resource from a path covered by a dictionary in cache, it includes a `sec-available-dictionary:` request header, which lists a **single** hash (lowercase hex)
+* The next time the browser fetches a resource from a URL that matches a pattern covered by a dictionary in cache, it includes a `sec-available-dictionary:` request header, which lists a **single** hash (lowercase hex)
     * The request is limited to specifying a **single** dictionary hash both to reduce the header overhead and limit the cardinality of the `sec-available-dictionary:` request header (to limit variations in the `Vary` caches).
     * The `sec-` prefix is there to ensure that requests are not attacker-generated.
-    * Any new resource as a dictionary for that path would override older ones. When sending requests, the browser would use the _most specific path_ for the request to get its dictionary. Path specificity is determined by the string length of the path specified with the dictionary.
+    * Any new resource as a dictionary with the same URL-matching pattern would override older ones. When sending requests, the browser would use the _most specific match_ for the request to get its dictionary. Specificity is determined by the string length of the match pattern specified with the dictionary.
     * The different SHA hash algorithms have different lengths so the actual algorithm doesn't need to be specified.
-    * The hex representation of a SHA-256 hash is relatively long at 64 bytes and it could be reduced to ~42 bytes if bas64 was used. By specifying the lowecase hex representation it makes processing of the request on the server much easier (and the hash value can be directly matched to part of a filename on-disk).
+    * The hex representation of a SHA-256 hash is relatively long at 64 bytes and it could be reduced to ~42 bytes if base64 was used. By specifying the lowecase hex representation it makes processing of the request on the server much easier (and the hash value can be directly matched to part of a filename on-disk).
 * When the server gets a request with the `sec-available-dictionary` header in it:
     * If the client sent a `sec-fetch-mode: cors` request header then the dictionary should be ignored unless the response will have an `Access-Control-Allow-Origin:` response header that includes the origin of the page the request was issued from (`*` or matched against the `origin:` or `referer:`).
     * The server can simply ignore the dictionary if it doesn't have a diff that corresponds to said dictionary. In that case the server can serve the response without delta compression.
@@ -133,11 +133,11 @@ In this flow, we’re reusing static resources themselves as dictionaries that w
 ### Dictionary options header
 The `use-as-dictionary:` response header is a [structured field dictionary](https://www.rfc-editor.org/rfc/rfc8941.html#name-dictionaries) that allows for setting multiple options and for future expansion.  The supported options and defaults are:
 
-* **p** - Path for the dictionary to apply to. *Required*. The path supports relative or absolute paths as well as `*` wildcard expansion. e.g. `/app1/main*` will match `https://www.example.com/app1/main_12345.js` and `main*` in response to `https://www.example.com/app1/main_1.js` will match `https://www.example.com/app1/main.xyz.js`.
-* **e** - Expiration time in seconds for the dictionary. *Defaults to 31536000 (1 year)*. This is independent of the cache lifetime of the resource being used for the dictionary. If the underlying resource is evicted from cache then it is also removed but this allows for setting an explicit time to live for use as a dictionary independent of the underlying resource in cache. Expired resources can still be useful as dictionaries while they are in cache and can be used for fetching updates of the expired resource. It can also be useful to artificially limit the life of a dictionary in cases where the dictionary is updated frequently, to limit the number of possible incoming dictionary values.
-* **h** - List of supported hash algorithms in order of server preference. Defaults to `(sha-256)` which is the only supported algorithm currently but allows for future migration to different hash algorithms.
+* **match** - URL-matching pattern for the dictionary to apply to. *Required*. This is parsed as a [URL](https://url.spec.whatwg.org/) that relative or absolute URLs as well as `*` wildcard expansion. e.g. `/app1/main*` will match `https://www.example.com/app1/main_12345.js` and `main*` in response to `https://www.example.com/app1/main_1.js` will match `https://www.example.com/app1/main.xyz.js`.
+* **expires** - Expiration time in seconds for the dictionary. *Defaults to 31536000 (1 year)*. This is independent of the cache lifetime of the resource being used for the dictionary. If the underlying resource is evicted from cache then it is also removed but this allows for setting an explicit time to live for use as a dictionary independent of the underlying resource in cache. Expired resources can still be useful as dictionaries while they are in cache and can be used for fetching updates of the expired resource. It can also be useful to artificially limit the life of a dictionary in cases where the dictionary is updated frequently, to limit the number of possible incoming dictionary values.
+* **algorithms** - List of supported hash algorithms in order of server preference. Defaults to `(sha-256)` which is the only supported algorithm currently but allows for future migration to different hash algorithms.
 
-For example: `use-as-dictionary: p="/app1/main", e=604800, h=(sha-256 sha-512)` would specify matching on a path prefix of `/app1/main`, expiring as a dictionary in 7 days, independent of the cache lifetime of the resource and advertise support for both sha-256 and sha-512.
+For example: `use-as-dictionary: match="/app1/main*", expires=604800, algorithms=(sha-256 sha-512)` would specify matching on a path prefix of `/app1/main`, expiring as a dictionary in 7 days, independent of the cache lifetime of the resource, and advertise support for both sha-256 and sha-512.
 
 ### Compression API
 
@@ -146,9 +146,9 @@ The compression API can also expose support for using caller-supplied dictionari
 ## Security and Privacy
 
 ### Dictionary and Resource readability (CORS)
-Since the contents of the dictionary and compressed resource are both effectively readable through side-channel attacks, this proposal makes it explicit and requires that both be CORS-readable from the document origin. The dictionary and compressed resource must also be from the same origin as each other with the `path` only comprising the path component of the matching URL.
+Since the contents of the dictionary and compressed resource are both effectively readable through side-channel attacks, this proposal makes it explicit and requires that both be CORS-readable from the document origin. The origin for the URL the dictionary was served from and the origin of the `match` pattern for URLs MUST be the same (i.e. the dictionary and compressed resource must both be from the same origin).
 
-For dictionaries and resources that are same-origin as the document, no additional requirements exist as both are CORS-readable from the document context. For navigation requests, their resource is by definition same-origin as the document their response will eventually commit. As a result, the dictionaries that apply to their path are similarly same-origin.
+For dictionaries and resources that are same-origin as the document, no additional requirements exist as both are CORS-readable from the document context. For navigation requests, their resource is by definition same-origin as the document their response will eventually commit. As a result, the dictionaries that match their URL pattern are similarly same-origin.
 
 For dictionaries and resources served from a different origin than the document, they must be CORS-readable from the document origin. e.g. `Access-Control-Allow-Origin: <document origin or *>`.
 
@@ -188,25 +188,25 @@ In this example, www.example.com will use a bundle of application JavaScript tha
 On the initial visit to the site:
 * The browser loads https://www.example.com/ which contains `<script src="//static.example.com/app/main.js/123">` (where 123 is the build number of the code).
 * The browser requests https://static.example.com/app/main.js/123 with `Accept-Encoding: sbr,br,gzip`.
-* The server for static.example.com responds with the file as well as `use-as-dictionary: p="/app/main.js"`, `Access-Control-Allow-Origin: https://www.example.com` and `Vary: Accept-Encoding,sec-available-dictionary`.
-* The browser caches the js file along with a SHA-256 hash of the decompressed file and the `/app/main.js` path.
+* The server for static.example.com responds with the file as well as `use-as-dictionary: match="/app/main.js*"`, `Access-Control-Allow-Origin: https://www.example.com` and `Vary: Accept-Encoding,sec-available-dictionary`.
+* The browser caches the js file along with a SHA-256 hash of the decompressed file and the `https://www.example.com/app/main.js*` URL pattern.
 
 ```mermaid
 sequenceDiagram
 Browser->>www.example.com: GET /
 www.example.com->>Browser: ...<script src="//static.example.com/app/main.js/123">...
 Browser->>static.example.com: GET /app/main.js/123<br/>Accept-Encoding: sbr,br,gzip
-static.example.com->>Browser: use-as-dictionary: p="/app/main.js"<br/>Access-Control-Allow-Origin: https://www.example.com<br/>Vary: Accept-Encoding,sec-available-dictionary
+static.example.com->>Browser: use-as-dictionary: match="/app/main.js"<br/>Access-Control-Allow-Origin: https://www.example.com<br/>Vary: Accept-Encoding,sec-available-dictionary
 ```
 
 At build time, the site developer creates delta-compressed versions of main.js using previous builds as dictionaries, storing the delta-compressed version along with the SHA-256 hash of the dictionary used (e.g. as `main.js.<hash>.sbr`).
 
 On a future visit to the site after the application code has changed:
 * The browser loads https://www.example.com/ which contains `<script src="//static.example.com/app/main.js/125">`.
-* The browser matches the `/app/main.js/125` request with the `/app/main.js` path of the previous response that is in cache and requests https://static.example.com/app/main.js/125 with `Accept-Encoding: sbr,br,gzip`, `sec-fetch-mode: cors` and `sec-available-dictionary: <SHA-256 HASH>`.
+* The browser matches the `https://www.example.com/app/main.js/125` request with the `https://www.example.com/app/main.js*` URL pattern of the previous dictionary response that is in cache and requests https://static.example.com/app/main.js/125 with `Accept-Encoding: sbr,br,gzip`, `sec-fetch-mode: cors` and `sec-available-dictionary: <SHA-256 HASH>`.
 * The server for static.example.com matches the URL and hash with the pre-compressed artifact from the build and responds with it and `Content-Encoding: sbr`, `Access-Control-Allow-Origin: https://www.example.com`, `Vary: Accept-Encoding,sec-available-dictionary`.
 
-It could have also included a new `use-as-dictionary: p="/app/main.js"` response header to have the new version of the file replace the old one as the dictionary to use for future requests for the path but that is not a requirement for the existing dictionary to have been used.
+It could have also included a new `use-as-dictionary: match="/app/main.js*"` response header to have the new version of the file replace the old one as the dictionary to use for future requests for the path but that is not a requirement for the existing dictionary to have been used.
 
 ```mermaid
 sequenceDiagram
@@ -221,21 +221,21 @@ static.example.com->>Browser: Content-Encoding: sbr<br/>Access-Control-Allow-Ori
 In this example, www.example.com has a custom-built dictionary that should be used for all navigation requests to /product.
 
 On the initial visit to the site:
-* The browser loads https://www.example.com which contains `<link rel=dictionary href="/product/dictionary_v1.dat">`.
-* At an idle time, the browser sends an uncredentialed fetch request for https://www.example.com/product/dictionary_v1.dat.
-* The server for www.example.com responds with the dictionary contents as well as `use-as-dictionary: p="/product/"` and appropriate caching headers.
-* The browser caches the dictionary file along with a SHA-256 hash of the decompressed file and the `/app/main.js` path.
+* The browser loads https://www.example.com/ which contains `<link rel=dictionary href="/dictionaries/product_v1.dat">`.
+* At an idle time, the browser sends an uncredentialed fetch request for https://www.example.com/dictionaries/product_v1.dat.
+* The server for www.example.com responds with the dictionary contents as well as `use-as-dictionary: match="/product/*"` and appropriate caching headers.
+* The browser caches the dictionary file along with a SHA-256 hash of the decompressed file and the `https://www.example.com/product/*` URL pattern.
 
 ```mermaid
 sequenceDiagram
 Browser->>www.example.com: GET /
-www.example.com->>Browser: ...<link rel=dictionary href="/product/dictionary_v1.dat">...
-Browser->>www.example.com: GET /product/dictionary_v1.dat<br/>Accept-Encoding: sbr,br,gzip
-www.example.com->>Browser: use-as-dictionary: p="/product/"
+www.example.com->>Browser: ...<link rel=dictionary href="/dictionaries/product_v1.dat">...
+Browser->>www.example.com: GET /dictionaries/product_v1.dat<br/>Accept-Encoding: sbr,br,gzip
+www.example.com->>Browser: use-as-dictionary: match="/product/*"
 ```
 
 At some point after the dictionary has been fetched, the user clicks on a link to https://www.example.com/product/myproduct:
-* The browser matches the `/product/myproduct` request with the `/product` path of the previous dictionary request and requests https://www.example.com/product/myproduct with `Accept-Encoding: sbr,br,gzip` and `sec-available-dictionary: <SHA-256 HASH>`.
+* The browser matches the `/product/myproduct` request with the `https://www.example.com/product/*` URL pattern of the previous dictionary request and requests https://www.example.com/product/myproduct with `Accept-Encoding: sbr,br,gzip` and `sec-available-dictionary: <SHA-256 HASH>`.
 * The server supports dynamically compressing responses using available dictionaries and has the dictionary with the same hash available and responds with a brotli-compressed version of the response using the specified dictionary and `Content-Encoding: sbr` (and Vary headers if the response is cacheable).
 
 ```mermaid
