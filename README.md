@@ -4,16 +4,16 @@
 This explainer outlines the benefits of compression dictionaries, details the different use case for them, and then proposes a way to deliver such dictionaries to browsers to enable these use cases.
 
 ## Summary
-This proposal adds support for using designated previous responses, as an external dictionary for [Brotli](https://github.com/google/brotli)-compressing HTTP responses. 
+This proposal adds support for using designated previous responses as an external dictionary for HTTP responses for compression schemes that support external dictionaries (e.g. [Brotli](https://www.rfc-editor.org/rfc/rfc7932) and [Zstandard](https://www.rfc-editor.org/rfc/rfc8878)). 
 
-HTTP `Content-Encoding` is extended with a new encoding type and support for allowing responses to be used as dictionaries for future requests. *All actual header values and names still TBD*:
+HTTP `Content-Encoding` is extended with new encoding types and support for allowing responses to be used as dictionaries for future requests. *All actual header values and names still TBD*:
 
 * Server responds to a request for a cacheable resource with an `use-as-dictionary: <options>`.
 * The client will store a hash of the uncompressed response and the applicable `match` URL pattern for the resource with the cached response to identify it as a dictionary.
-* On future requests, the client will match a request against the available dictionary `match` URL patterns. If multiple patterns are matched, the most-specific match is used. If a dictionary is available for a given request, the client will add `sbr` to the `Accept-Encoding` request header as well as a `sec-available-dictionary: <SHA-256>` header with the hash of the best available dictionary (only SHA-256 is currently supported).
-* If the server has a compressed version of the request URL with the matching dictionary, it serves the dictonary-compressed response with `Content-Encoding: sbr` and `Vary: Accept-Encoding,sec-available-dictionary`.
+* On future requests, the client will match a request against the available dictionary `match` URL patterns. If multiple patterns are matched, the most-specific match is used. If a dictionary is available for a given request, the client will add an appropriate compression scheme (e.g. `sbr` for shared brotli) to the `Accept-Encoding` request header as well as a `sec-available-dictionary: <SHA-256>` header with the hash of the best available dictionary (only SHA-256 is currently supported).
+* If the server has a compressed version of the request URL with the matching dictionary, it serves the dictonary-compressed response with the applicable `Content-Encoding:` (e.g. `sbr`) and `Vary: Accept-Encoding,sec-available-dictionary`.
 
-For interop reasons, `sbr` compression is only supported on secure contexts (similar to brotli compression).
+For interop reasons, dictionary-based compression is only supported on secure contexts (similar to brotli compression).
 
 There are also some browser-specific features independent of the transport compression:
 * For security and privacy reasons, there are [CORS](https://fetch.spec.whatwg.org/#http-cors-protocol) requirements ([detailed below](#security-mitigations)) for both the dictionary and compressed resource.
@@ -139,6 +139,13 @@ The `use-as-dictionary:` response header is a [structured field dictionary](http
 
 For example: `use-as-dictionary: match="/app1/main*", expires=604800, algorithms=(sha-256 sha-512)` would specify matching on a path prefix of `/app1/main`, expiring as a dictionary in 7 days, independent of the cache lifetime of the resource, and advertise support for both sha-256 and sha-512.
 
+### Compression algorithms
+The dictionary negotiation is independent of the compression algorithm that is used for compressing the HTTP response and is designed to support any compression scheme that supports using external compression dictionaries. Currently that includes Brotli and Zstandard but it is not limited to those (and depends on the what the client and server both support). It is likely that, in the future, content-specific compression schemes that handle delta-compression better may be built (i.e. code-aware Wasm compression).
+
+The compression algorithm negotiation uses the regular `Accept-Encoding:`/`Content-Encoding:` negotiation that is used for non-dictionary compression. It is important that new names are registered with the [HTTP Content Coding Registry](https://www.iana.org/assignments/http-parameters/http-parameters.xhtml#content-coding) for algorithms that use an external dictionary to prevent situations where processing along the request flow may attemt to decode a response using just the algorithm without being dictionary-aware. That way, if anything in the request flow needs to operate on the decoded content, it can either be made aware of the dictionary-based compression or it can modify the `Accept-Encoding:` request header to only support schemes that it is aware of (already common practice).
+
+The examples in this document will use `sbr` for dictionary-based Brotli compression but the actual algorithm(s) negotiated could be anything that the client supports.
+
 ### Compression API
 
 The compression API can also expose support for using caller-supplied dictionaries but that is out-of-scope for this proposal.
@@ -163,7 +170,7 @@ The existence of a dictionary is effectively a cookie for any requests that matc
 * Storage partitioning for dictionary resource metadata should be at least as restrictive as for cookies.
 * Dictionary entries (or at least the metadata) should be cleared any time cookies are cleared.
 
-The existence of support for `content-encoding: sbr` has the potential to leak client state information if not applied consistently. If the browser supports `sbr` encoding then it should always be advertised, independent of the current state of the feature. Specifically, this means that in any private browsing mode (Incognito in Chrome), `sbr` support should still be advertised even if the dictionaries will not persist so that the state of the private browsing mode is not exposed.
+The existence of support for dictionary-based `accept-encoding:` has the potential to leak client state information if not applied consistently. If the browser supports dictionary-based compression algorithms encoding then it should always be advertised, independent of the current state of the feature. Specifically, this means that in any private browsing mode (Incognito in Chrome), `sbr` support should still be advertised even if the dictionaries will not persist so that the state of the private browsing mode is not exposed.
 
 ### Triggering dictionary fetches
 The explicit fetching of a dictionary through a `<link rel=dictionary>` tag or `Link:` header is functionally equivalent to `<link rel=preload>` with different priority and should be treated as such. This means that the `Link:` header is only effective for document navigation responses and can not be used for subresource loads.
@@ -171,7 +178,7 @@ The explicit fetching of a dictionary through a `<link rel=dictionary>` tag or `
 This prevents passive resources, like images, from using the dictionary fetch as a side-channel for sending information.
 
 ## Cache/CDN considerations
-Any caches between the server and the client will need to be able to support `Vary` on both `Accept-Encoding` and `sec-available-dictionary`, otherwise the responses will be either corrupt (in the case of serving a sbr resource with the wrong dictionary) or ineffective (serving the brotli-compressed resource when sbr was possible).
+Any caches between the server and the client will need to be able to support `Vary` on both `Accept-Encoding` and `sec-available-dictionary`, otherwise the responses will be either corrupt (in the case of serving a `sbr` resource with the wrong dictionary) or ineffective (serving the brotli-compressed resource when `sbr` was possible).
 
 Any middle-boxes in the request flow will also need to support the `sbr` content-encoding, either by passing it through unmodified or by managing the appropriate dictionaries and compressed resources.
 
