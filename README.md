@@ -151,9 +151,8 @@ The examples in this document will use `sbr` for dictionary-based Brotli compres
 The compression API can also expose support for using caller-supplied dictionaries but that is out-of-scope for this proposal.
 
 ### Websockets
-Websockets will be able to leverage the `sec-available-dictionary:` and content-encoding negotiation parts of the compression dictionary transport but the `use-as-dictionary:` part of the dictionary negotiation is not possible without exposing cross-origin data.
 
-A new Javascript or HTML API will be needed to specify dictionaries to be used with a given Websocket URL pattern but that is out-of-scope for this proposal.
+Websocket support is out-of-scope for this proposal but there is nothing in the current dictionary negotiation that precludes websockets from being able to build dictionary-based compression (either by leveraging parts of what is provided here or building something separate).
 
 ## Security and Privacy
 
