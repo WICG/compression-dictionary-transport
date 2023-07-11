@@ -150,6 +150,10 @@ The examples in this document will use `sbr` for dictionary-based Brotli compres
 
 The compression API can also expose support for using caller-supplied dictionaries but that is out-of-scope for this proposal.
 
+### Websockets
+
+Websocket support is out-of-scope for this proposal but there is nothing in the current dictionary negotiation that precludes websockets from being able to build dictionary-based compression (either by leveraging parts of what is provided here or building something separate).
+
 ## Security and Privacy
 
 ### Dictionary and Resource readability (CORS)
