@@ -105,7 +105,7 @@ In this flow, we’re reusing static resources themselves as dictionaries that w
 * [example.com](http://example.com/) downloads [example.com/large-module.wasm](http://example.com/large-module.wasm) for the first time.
 * The response for [example.com/large-module.wasm](http://example.com/large-module.wasm) contains a `use-as-dictionary: <options>` response header. The options are a [structured field dictionary](https://www.rfc-editor.org/rfc/rfc8941.html#name-dictionaries) that includes the ability to set a URL-matching pattern, expiration and preferred hash algorithms. More details [here](#dictionary-options-header).
 * The client saves the URL pattern and a SHA-256 hash of the resource with the cached resource.
-    * For browser clients, the response must also be non-opaque in order to be used as a dictionary. Practically, this means the response is either same-origin as the document or has an `Access-Control-Allow-Origin:` header that makes the response readable by the document.
+    * For browser clients, the response must also be non-opaque in order to be used as a dictionary. Practically, this means the response is either same-origin as the document or is a cross-origin request with an `Access-Control-Allow-Origin:` response header that makes the response readable by the document.
 * The next time the browser fetches a resource from a URL that matches a pattern covered by a dictionary in cache, it includes a `sec-available-dictionary:` request header, which lists a **single** hash (lowercase hex)
     * The request is limited to specifying a **single** dictionary hash both to reduce the header overhead and limit the cardinality of the `sec-available-dictionary:` request header (to limit variations in the `Vary` caches).
     * The `sec-` prefix is there to ensure that requests are not attacker-generated.
@@ -118,7 +118,7 @@ In this flow, we’re reusing static resources themselves as dictionaries that w
     * If the server does have a corresponding diff, it can respond with that, indicating that as part of its `content-encoding` header. There's no need to repeat the hash value, as there's only one.
       - For example, if we're using [shared brotli compression](https://datatracker.ietf.org/doc/draft-vandevenne-shared-brotli-format/), the `content-encoding: sbr` header would respond with `Content-Encoding: sbr`.
 * In case the browser advertized a dictionary but then fails to successfully fetch it from its cache *and* the dictionary was used by the server, the resource request should fail.
-* For browser clients, the response must be non-opaque in order to be decompressed with a shared dictionary. Practically, this means the response is either same-origin as the document or has an `Access-Control-Allow-Origin:` header that makes the response readable by the document.
+* For browser clients, the response must be non-opaque in order to be decompressed with a shared dictionary. Practically, this means the response is either same-origin as the document or is a cross-origin request with an `Access-Control-Allow-Origin:` response header that makes the response readable by the document.
 
 ### Dynamic resources flow
 
@@ -128,7 +128,7 @@ In this flow, we’re reusing static resources themselves as dictionaries that w
     * Browsers may decide to not download it when they suspect that the user is paying for bandwidth, or when used by sites that are not likely to amortize the dictionary costs (e.g. sites that the user isn’t visiting frequently enough).
     * Browsers may decide to not use a shared dictionary if it contains hints that its contents are not public (e.g. `Cache-Control: private` headers).
 * The dictionary response must include the `use-as-dictionary: <options>` header, appropriate cache lifetime headers and will be used for future requests using the same process as the [Static resources flow](#static-resources-flow).
-    * For browser clients, the response must also be non-opaque in order to be used as a dictionary. Practically, this means the response is either same-origin as the document or has an `Access-Control-Allow-Origin:` header that makes the response readable by the document.
+    * For browser clients, the response must also be non-opaque in order to be used as a dictionary. Practically, this means the response is either same-origin as the document or is a cross-origin request with an `Access-Control-Allow-Origin:` response header that makes the response readable by the document.
 
 ### Dictionary options header
 The `use-as-dictionary:` response header is a [structured field dictionary](https://www.rfc-editor.org/rfc/rfc8941.html#name-dictionaries) that allows for setting multiple options and for future expansion.  The supported options and defaults are:
@@ -197,7 +197,7 @@ Any middle-boxes in the request flow will also need to support the dictionary-co
 In this example, www.example.com will use a bundle of application JavaScript that they serve from a separate static domain (static.example.com). The JavaScript files are versioned and have a long cache time, with the URL changing when a new version of the code is shipped.
 
 On the initial visit to the site:
-* The browser loads https://www.example.com/ which contains `<script src="//static.example.com/app/main.js/123">` (where 123 is the build number of the code).
+* The browser loads https://www.example.com/ which contains `<script src="//static.example.com/app/main.js/123" crossorigin>` (where 123 is the build number of the code).
 * The browser requests https://static.example.com/app/main.js/123 with `Accept-Encoding: sbr,br,gzip`.
 * The server for static.example.com responds with the file as well as `use-as-dictionary: match="/app/main.js*"`, `Access-Control-Allow-Origin: https://www.example.com` and `Vary: Accept-Encoding,sec-available-dictionary`.
 * The browser caches the js file along with a SHA-256 hash of the decompressed file and the `https://www.example.com/app/main.js*` URL pattern.
@@ -205,7 +205,7 @@ On the initial visit to the site:
 ```mermaid
 sequenceDiagram
 Browser->>www.example.com: GET /
-www.example.com->>Browser: ...<script src="//static.example.com/app/main.js/123">...
+www.example.com->>Browser: ...<script src="//static.example.com/app/main.js/123" crossorigin>...
 Browser->>static.example.com: GET /app/main.js/123<br/>Accept-Encoding: sbr,br,gzip
 static.example.com->>Browser: use-as-dictionary: match="/app/main.js"<br/>Access-Control-Allow-Origin: https://www.example.com<br/>Vary: Accept-Encoding,sec-available-dictionary
 ```
@@ -213,7 +213,7 @@ static.example.com->>Browser: use-as-dictionary: match="/app/main.js"<br/>Access
 At build time, the site developer creates delta-compressed versions of main.js using previous builds as dictionaries, storing the delta-compressed version along with the SHA-256 hash of the dictionary used (e.g. as `main.js.<hash>.sbr`).
 
 On a future visit to the site after the application code has changed:
-* The browser loads https://www.example.com/ which contains `<script src="//static.example.com/app/main.js/125">`.
+* The browser loads https://www.example.com/ which contains `<script src="//static.example.com/app/main.js/125" crossorigin>`.
 * The browser matches the `https://www.example.com/app/main.js/125` request with the `https://www.example.com/app/main.js*` URL pattern of the previous dictionary response that is in cache and requests https://static.example.com/app/main.js/125 with `Accept-Encoding: sbr,br,gzip`, `sec-fetch-mode: cors` and `sec-available-dictionary: <SHA-256 HASH>`.
 * The server for static.example.com matches the URL and hash with the pre-compressed artifact from the build and responds with it and `Content-Encoding: sbr`, `Access-Control-Allow-Origin: https://www.example.com`, `Vary: Accept-Encoding,sec-available-dictionary`.
 
@@ -222,7 +222,7 @@ It could have also included a new `use-as-dictionary: match="/app/main.js*"` res
 ```mermaid
 sequenceDiagram
 Browser->>www.example.com: GET /
-www.example.com->>Browser: ...<script src="//static.example.com/app/main.js/125">...
+www.example.com->>Browser: ...<script src="//static.example.com/app/main.js/125" crossorigin>...
 Browser->>static.example.com: GET /app/main.js/125<br/>Accept-Encoding: sbr,br,gzip<br/>sec-fetch-mode: cors<br/>sec-available-dictionary: [SHA-256 HASH]
 static.example.com->>Browser: Content-Encoding: sbr<br/>Access-Control-Allow-Origin: https://www.example.com<br/>Vary: Accept-Encoding,sec-available-dictionary
 ```
