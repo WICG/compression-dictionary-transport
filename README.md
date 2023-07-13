@@ -161,13 +161,15 @@ Since the contents of the dictionary and compressed resource are both effectivel
 
 For dictionaries and resources that are same-origin as the document, no additional requirements exist as both are CORS-readable from the document context. For navigation requests, their resource is by definition same-origin as the document their response will eventually commit. As a result, the dictionaries that match their URL pattern are similarly same-origin.
 
-For dictionaries and resources served from a different origin than the document, they must be CORS-readable from the document origin. e.g. `Access-Control-Allow-Origin: <document origin or *>`.
+For dictionaries and resources served from a different origin than the document, they must be CORS-readable from the document origin. e.g. `Access-Control-Allow-Origin: <document origin or *>`. This means that any crossorigin content that is fetched in `no-cors` mode by default must enable CORS-fetching (usually with the `crossorigin` attribute).
 
 When sending a CORS request with an available dictionary, a browser should only include the `sec-available-dictionary:` header if it is also sending the `sec-fetch-mode:` header so a CORS-readable decision can be made on the server before responding.
 
 In order to prevent sending dictionary-compressed responses that the client will not be able to process, when a server receives a request with `sec-fetch-mode: cors` as well as a `sec-available-dictionary:` dictionary, it should only use the dictionary if the response includes a `Access-Control-Allow-Origin:` response header that includes the origin of the page the request was made from. Either by virtue of `Access-Control-Allow-Origin: *` covering all origins or if `Access-Control-Allow-Origin:` includes the origin in the `origin:` or `referer:` request header. If there is no `origin:` or `referer:` request header and `Access-Control-Allow-Origin:` is not `*` then the dictionary should not be used.
 
 To discourage encoding user-specific private information into the dictionaries, any out-of-band dictionaries fetched using a `<link>` will be uncredentialed fetches.
+
+These protections against compressing opaque resources make [CORB](https://github.com/whatwg/fetch/issues/681) and [ORB](https://github.com/annevk/orb) considerations unnecessary as they are specific to protecting opaque resources.
 
 ### Fingerprinting
 The existence of a dictionary is effectively a cookie for any requests that match it and should be treated as such:
