@@ -12,7 +12,7 @@ HTTP `Content-Encoding` is extended with new encoding types and support for allo
 
 * Server responds to a request for a cacheable resource with a `Use-As-Dictionary: <options>` response header.
 * The client will store a hash of the uncompressed response and the applicable `match` URL pattern for the resource with the cached response to identify it as a dictionary.
-* On future requests, the client will match a request against the available dictionary `match` URL patterns. If multiple patterns are matched, the most-specific match is used. If a dictionary is available for a given request, the client will add an appropriate compression scheme (e.g. `br-d` for shared brotli) to the `Accept-Encoding` request header as well as an `Available-Dictionary: <SHA-256>` header with the hash of the best available dictionary.
+* On future requests, the client will match a request against the available dictionary `match` URL patterns. If multiple patterns are matched, the most-specific match is used. If a dictionary is available for a given request, the client will add an appropriate compression scheme (e.g. `br-d` for shared brotli) to the `Accept-Encoding` request header as well as an `Available-Dictionary: <sf-binary SHA-256>` header with the hash of the best available dictionary. The hash is sent as a [Structured Field Byte Sequence](https://www.rfc-editor.org/rfc/rfc8941.html#name-byte-sequences) (base64-encoded, enclosed by colons). e.g. `Available-Dictionary: :pZGm1Av0IEBKARczz7exkNYsZb8LzaMrV7J32a2fFG4=:`.
 * If the server has a compressed version of the request URL with the matching dictionary, it serves the dictonary-compressed response with the applicable `Content-Encoding:` (e.g. `br-d`) and `Vary: Accept-Encoding,Available-Dictionary`.
 
 For interop reasons, dictionary-based compression is only supported on secure contexts (similar to brotli compression).
@@ -212,8 +212,8 @@ At build time, the site developer creates delta-compressed versions of main.js u
 
 On a future visit to the site after the application code has changed:
 * The browser loads https://www.example.com/ which contains `<script src="//static.example.com/app/main.js/125" crossorigin>`.
-* The browser matches the `https://www.example.com/app/main.js/125` request with the `https://www.example.com/app/main.js*` URL pattern of the previous dictionary response that is in cache and requests https://static.example.com/app/main.js/125 with `Accept-Encoding: br-d,br,gzip`, `sec-fetch-mode: cors` and `Available-Dictionary: <SHA-256 HASH>`.
-* The server for static.example.com matches the URL and hash with the pre-compressed artifact from the build and responds with it and `Content-Encoding: br-d`, `Access-Control-Allow-Origin: https://www.example.com`, `Vary: Accept-Encoding,Available-Dictionary`, and `Content-Dictionary: <SHA-256 HASH>` response headers.
+* The browser matches the `https://www.example.com/app/main.js/125` request with the `https://www.example.com/app/main.js*` URL pattern of the previous dictionary response that is in cache and requests https://static.example.com/app/main.js/125 with `Accept-Encoding: br-d,br,gzip`, `sec-fetch-mode: cors` and `Available-Dictionary: :pZGm1Av0IEBKARczz7exkNYsZb8LzaMrV7J32a2fFG4=:`. For this example, the hash value from the header would need to be re-encoded as a filesystem-safe version of the hash before looking for the file (bas64-decode the header value and hen hex-encode the hash).
+* The server for static.example.com matches the URL and hash with the pre-compressed artifact from the build and responds with it and `Content-Encoding: br-d`, `Access-Control-Allow-Origin: https://www.example.com`, `Vary: Accept-Encoding,Available-Dictionary`, and `Content-Dictionary: :pZGm1Av0IEBKARczz7exkNYsZb8LzaMrV7J32a2fFG4=:` response headers.
 
 It could have also included a new `Use-As-Dictionary: match="/app/main.js*"` response header to have the new version of the file replace the old one as the dictionary to use for future requests for the path but that is not a requirement for the existing dictionary to have been used.
 
@@ -221,8 +221,8 @@ It could have also included a new `Use-As-Dictionary: match="/app/main.js*"` res
 sequenceDiagram
 Browser->>www.example.com: GET /
 www.example.com->>Browser: ...<script src="//static.example.com/app/main.js/125" crossorigin>...
-Browser->>static.example.com: GET /app/main.js/125<br/>Accept-Encoding: br-d,br,gzip<br/>sec-fetch-mode: cors<br/>Available-Dictionary: [SHA-256 HASH]
-static.example.com->>Browser: Content-Encoding: br-d<br/>Content-Dictionary: [SHA-256 HASH]<br/>Access-Control-Allow-Origin: https://www.example.com<br/>Vary: Accept-Encoding,Available-Dictionary
+Browser->>static.example.com: GET /app/main.js/125<br/>Accept-Encoding: br-d,br,gzip<br/>sec-fetch-mode: cors<br/>Available-Dictionary: :pZGm1Av0IEBKARczz7exkNYsZb8LzaMrV7J32a2fFG4=:
+static.example.com->>Browser: Content-Encoding: br-d<br/>Content-Dictionary: :pZGm1Av0IEBKARczz7exkNYsZb8LzaMrV7J32a2fFG4=:<br/>Access-Control-Allow-Origin: https://www.example.com<br/>Vary: Accept-Encoding,Available-Dictionary
 ```
 
 ### Site-specific dictionary used for all document navigations in a part of the site
@@ -244,13 +244,13 @@ www.example.com->>Browser: use-as-dictionary: match="/product/*", match-dest=("d
 ```
 
 At some point after the dictionary has been fetched, the user clicks on a link to https://www.example.com/product/myproduct:
-* The browser matches the `/product/myproduct` request with the `https://www.example.com/product/*` URL pattern of the previous dictionary request as well as the `document` request destination and requests https://www.example.com/product/myproduct with `Accept-Encoding: br-d,br,gzip`, `Available-Dictionary: <SHA-256 HASH>` and `Dictionary-ID: "product_v1"` request headers.
-* The server supports dynamically compressing responses using available dictionaries and has the dictionary with the same ID and hash available and responds with a brotli-compressed version of the response using the specified dictionary as well as `Content-Encoding: br-d` and `Content-Dictionary: <SHA-256 HASH>` response headers.
+* The browser matches the `/product/myproduct` request with the `https://www.example.com/product/*` URL pattern of the previous dictionary request as well as the `document` request destination and requests https://www.example.com/product/myproduct with `Accept-Encoding: br-d,br,gzip`, `Available-Dictionary: :pZGm1Av0IEBKARczz7exkNYsZb8LzaMrV7J32a2fFG4=:` and `Dictionary-ID: "product_v1"` request headers.
+* The server supports dynamically compressing responses using available dictionaries and has the dictionary with the same ID and hash available and responds with a brotli-compressed version of the response using the specified dictionary as well as `Content-Encoding: br-d` and `Content-Dictionary: :pZGm1Av0IEBKARczz7exkNYsZb8LzaMrV7J32a2fFG4=:` response headers.
 
 ```mermaid
 sequenceDiagram
-Browser->>www.example.com: GET /product/myproduct<br/>Accept-Encoding: br-d,br,gzip<br/>Available-Dictionary: [SHA-256 HASH]<br/>Dictionary-ID: "product_v1"
-www.example.com->>Browser: Content-Encoding: br-d<br/>Content-Dictionary: [SHA-256 HASH]
+Browser->>www.example.com: GET /product/myproduct<br/>Accept-Encoding: br-d,br,gzip<br/>Available-Dictionary: :pZGm1Av0IEBKARczz7exkNYsZb8LzaMrV7J32a2fFG4=:<br/>Dictionary-ID: "product_v1"
+www.example.com->>Browser: Content-Encoding: br-d<br/>Content-Dictionary: :pZGm1Av0IEBKARczz7exkNYsZb8LzaMrV7J32a2fFG4=:
 ```
 
 # Changelog
