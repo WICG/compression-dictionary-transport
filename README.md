@@ -137,7 +137,7 @@ The `Use-As-Dictionary:` response header is a [structured field dictionary](http
 * **match-dest** - An optional [Structured Field Inner List](https://www.rfc-editor.org/rfc/rfc8941.html#name-inner-lists) of string values of matching [request destinations](https://fetch.spec.whatwg.org/#concept-request-destination). The default value is An empty list (`()`) which will match all request destinations.
 * **id** - An optional server-provided dictionary ID string. The string is opaque to the client and echoed back to the server in a `Dictionary-ID` request header when the dictionary matches an outbound request. The default value is an empty string (`""`).
 
-For example: `use-as-dictionary: match="/app1/main*", match=("script"), id="xxx"` would specify matching on a path prefix of `/app1/main` for script requests and to send `Dictionary-ID: "xxx"` for any requests that match the dictionary.
+For example: `use-as-dictionary: match="/app1/main*", match-dest=("script"), id="xxx"` would specify matching on a path prefix of `/app1/main` for script requests and to send `Dictionary-ID: "xxx"` for any requests that match the dictionary.
 
 ### Compression algorithms
 The dictionary negotiation is independent of the compression algorithm that is used for compressing the HTTP response and is designed to support any compression scheme that supports using external compression dictionaries. Currently that includes Brotli and Zstandard but it is not limited to those (and depends on the what the client and server both support). It is likely that, in the future, content-specific compression schemes that handle delta-compression better may be built (i.e. code-aware Wasm compression).
