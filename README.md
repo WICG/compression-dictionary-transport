@@ -18,4 +18,4 @@ These are the changes that have been made to the specs as it has progressed thro
 * The expiration of the dictionary now uses the cache expiration of the dictionary resource instead of a separate `expires`.
 * The server can provide an `id` in the `Use-As-Dictionary` response header which is echoed in the `Dictionary-ID` request header by the client in future requests.
 * The server needs to send a `Content-Dictionary` response header with the hash of the dictionary used when compressing a response with a dictionary (must match the `Available-Dictionary` from the request).
-* `match-dest` was added to the `Use-As-Dictionary` response header to allow for matching on fetch destinations (e.g. `match-dest=["document"]` and have the dictionary only be used for document requests).
+* `match-dest` was added to the `Use-As-Dictionary` response header to allow for matching on fetch destinations (e.g. `match-dest=("document" "frame")` and have the dictionary only be used for document requests).
