@@ -9,6 +9,7 @@ These are the changes that have been made to the specs as it has progressed thro
 * The `dictionary` link relation type was changed to `compression-dictionary`.
 * The `br-d` content encoding changed to `dcb` and a header with the hash of the dictionary was added to the stream.
 * The `zstd-d` content encoding changed to `dcz` and a header with the hash of the dictionary was added to the stream.
+* The `Content-Dictionary` header was eliminated (since the dictionary hash was moved into the `dcb` and `dcz` response stream).
 
 ## Feb 2023
 * The `Sec-Available-Dictionary` request header changed to `Available-Dictionary`.
