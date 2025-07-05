@@ -79,7 +79,7 @@ The wasm was 47% smaller using the previous version as a dictionary for the new 
 ## Google search results
 10 different search terms were tested that generate wildly different types of search results pages (commerce, text-only, maps, news, IMDB listings, etc). They were tested with varying dictionary sizes including 64k, 128k, 256k, 512k and 1mb.
 
-A dictionary between 128k and 256k (40k and 71k compressed) showed the bulk of the gains. With the HTML foar each search results page being anywhere from 30% to 66% smaller using a shared dictionary (depending on the page content). Pages with more embedded images were on the lower end of the gains and text-only search results pages were commonly 50-65% smaller.
+A dictionary between 128k and 256k (40k and 71k compressed) showed the bulk of the gains. With the HTML for each search results page being anywhere from 30% to 66% smaller using a shared dictionary (depending on the page content). Pages with more embedded images were on the lower end of the gains and text-only search results pages were commonly 50-65% smaller.
 
 ## Etsy product listing pages
 10 different product listing pages from Etsy were used with a 1mb dictionary (132kb compressed). Most of the gains could probably have been had with a much smaller dictionary but this was useful for exploring the upper bound in savings.
